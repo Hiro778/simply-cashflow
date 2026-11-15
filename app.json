@@ -1,0 +1,38 @@
+{
+  "expo": {
+    "name": "Simply Cashflow",
+    "slug": "simply-cashflow",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "scheme": "simplycashflow",
+    "userInterfaceStyle": "dark",
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#080D0B"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.hiro778.simplycashflow"
+    },
+    "android": {
+      "package": "com.hiro778.simplycashflow",
+      "versionCode": 1,
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundColor": "#080D0B"
+      },
+      "backgroundColor": "#080D0B",
+      "permissions": []
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-sqlite",
+      "expo-font"
+    ]
+  }
+}
