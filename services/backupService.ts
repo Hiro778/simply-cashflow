@@ -1,4 +1,4 @@
-import * as FileSystem from 'expo-file-system';
+import { Paths, File } from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import { getDatabase } from '../database/db';
 import { getAllTransactions, replaceAllTransactions } from '../database/repositories/transactionRepository';
@@ -28,14 +28,14 @@ export async function exportJSONBackup(): Promise<string> {
 
   const jsonString = JSON.stringify(backupData, null, 2);
   const fileName = `simply_cashflow_backup_${Date.now()}.json`;
-  const fileUri = `${FileSystem.documentDirectory || ''}${fileName}`;
 
   try {
-    await FileSystem.writeAsStringAsync(fileUri, jsonString, {
-      encoding: FileSystem.EncodingType.UTF8,
-    });
+    const file = new File(Paths.document, fileName);
+    file.create();
+    file.write(jsonString);
+
     if (await Sharing.isAvailableAsync()) {
-      await Sharing.shareAsync(fileUri, {
+      await Sharing.shareAsync(file.uri, {
         mimeType: 'application/json',
         dialogTitle: 'Export Backup Simply Cashflow',
         UTI: 'public.json',
@@ -52,14 +52,14 @@ export async function exportCSVReport(): Promise<string> {
   const transactions = await getAllTransactions();
   const csvContent = generateCSV(transactions);
   const fileName = `simply_cashflow_transactions_${Date.now()}.csv`;
-  const fileUri = `${FileSystem.documentDirectory || ''}${fileName}`;
 
   try {
-    await FileSystem.writeAsStringAsync(fileUri, csvContent, {
-      encoding: FileSystem.EncodingType.UTF8,
-    });
+    const file = new File(Paths.document, fileName);
+    file.create();
+    file.write(csvContent);
+
     if (await Sharing.isAvailableAsync()) {
-      await Sharing.shareAsync(fileUri, {
+      await Sharing.shareAsync(file.uri, {
         mimeType: 'text/csv',
         dialogTitle: 'Export Laporan Transaksi CSV',
         UTI: 'public.comma-separated-values-text',
