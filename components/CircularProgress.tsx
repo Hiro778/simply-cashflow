@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, StyleSheet, Text } from 'react-native';
 import Svg, { Circle } from 'react-native-svg';
-import { Colors } from '../constants/theme';
+import { useTheme } from '../hooks/useTheme';
 
 interface CircularProgressProps {
   size: number;
@@ -17,11 +17,16 @@ export const CircularProgress: React.FC<CircularProgressProps> = ({
   size,
   strokeWidth,
   progress,
-  color = Colors.primary,
-  trackColor = 'rgba(255, 255, 255, 0.08)',
+  color,
+  trackColor,
   label,
   sublabel,
 }) => {
+  const { colors, isDark } = useTheme();
+  const activeColor = color || colors.primary;
+  const activeTrackColor =
+    trackColor || (isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(23, 35, 29, 0.08)');
+
   const radius = (size - strokeWidth) / 2;
   const circumference = 2 * Math.PI * radius;
   const clampedProgress = Math.min(100, Math.max(0, progress));
@@ -35,16 +40,16 @@ export const CircularProgress: React.FC<CircularProgressProps> = ({
           cx={size / 2}
           cy={size / 2}
           r={radius}
-          stroke={trackColor}
+          stroke={activeTrackColor}
           strokeWidth={strokeWidth}
           fill="none"
         />
-        {/* Animated Progress Circle */}
+        {/* Progress Circle */}
         <Circle
           cx={size / 2}
           cy={size / 2}
           r={radius}
-          stroke={color}
+          stroke={activeColor}
           strokeWidth={strokeWidth}
           strokeDasharray={`${circumference} ${circumference}`}
           strokeDashoffset={strokeDashoffset}
@@ -57,8 +62,16 @@ export const CircularProgress: React.FC<CircularProgressProps> = ({
       </Svg>
       {(label || sublabel) && (
         <View style={styles.centerTextContainer}>
-          {label && <Text style={[styles.labelText, { color }]}>{label}</Text>}
-          {sublabel && <Text style={styles.sublabelText}>{sublabel}</Text>}
+          {label && (
+            <Text style={[styles.labelText, { color: activeColor }]}>
+              {label}
+            </Text>
+          )}
+          {sublabel && (
+            <Text style={[styles.sublabelText, { color: colors.textSecondary }]}>
+              {sublabel}
+            </Text>
+          )}
         </View>
       )}
     </View>
@@ -83,7 +96,6 @@ const styles = StyleSheet.create({
   },
   sublabelText: {
     fontSize: 10,
-    color: Colors.textSecondary,
     fontWeight: '500',
     marginTop: 2,
   },

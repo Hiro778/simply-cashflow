@@ -11,12 +11,13 @@ import {
   Platform,
   Alert,
 } from 'react-native';
-import { Colors, Spacing, BorderRadius } from '../constants/theme';
+import { useTheme } from '../hooks/useTheme';
+import { Spacing, BorderRadius } from '../constants/theme';
 import { SavingsGoal } from '../database/schema';
 import { CategoryIcon } from './CategoryIcon';
 import { Button } from './Button';
 import { formatIDR, parseIDR } from '../utils/currency';
-import { X, Trash2 } from 'lucide-react-native';
+import { X, Trash2, Calendar } from 'lucide-react-native';
 
 interface SavingsGoalModalProps {
   visible: boolean;
@@ -40,11 +41,11 @@ const AVAILABLE_ICONS = [
 ];
 
 const AVAILABLE_COLORS = [
-  '#35D07F',
+  '#39D98A',
   '#80E6AC',
   '#38BDF8',
   '#A78BFA',
-  '#FBBF24',
+  '#F4C76B',
   '#F472B6',
   '#FB923C',
 ];
@@ -56,12 +57,14 @@ export const SavingsGoalModal: React.FC<SavingsGoalModalProps> = ({
   onSave,
   onDelete,
 }) => {
+  const { colors, isDark } = useTheme();
+
   const [name, setName] = useState('');
   const [targetAmountRaw, setTargetAmountRaw] = useState('');
   const [targetDate, setTargetDate] = useState('');
   const [description, setDescription] = useState('');
   const [selectedIcon, setSelectedIcon] = useState('Target');
-  const [selectedColor, setSelectedColor] = useState('#35D07F');
+  const [selectedColor, setSelectedColor] = useState('#39D98A');
   const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
@@ -71,11 +74,10 @@ export const SavingsGoalModal: React.FC<SavingsGoalModalProps> = ({
       setTargetDate(initialGoal.target_date);
       setDescription(initialGoal.description || '');
       setSelectedIcon(initialGoal.icon || 'Target');
-      setSelectedColor(initialGoal.color || '#35D07F');
+      setSelectedColor(initialGoal.color || '#39D98A');
     } else {
       setName('');
       setTargetAmountRaw('');
-      // Default target date: 6 months from now
       const future = new Date();
       future.setMonth(future.getMonth() + 6);
       const y = future.getFullYear();
@@ -84,7 +86,7 @@ export const SavingsGoalModal: React.FC<SavingsGoalModalProps> = ({
       setTargetDate(`${y}-${m}-${d}`);
       setDescription('');
       setSelectedIcon('Target');
-      setSelectedColor('#35D07F');
+      setSelectedColor('#39D98A');
     }
   }, [initialGoal, visible]);
 
@@ -101,28 +103,28 @@ export const SavingsGoalModal: React.FC<SavingsGoalModalProps> = ({
 
     const targetAmount = parseIDR(targetAmountRaw);
     if (targetAmount <= 0) {
-      Alert.alert('Perhatian', 'Masukkan jumlah target tabungan yang valid');
+      Alert.alert('Perhatian', 'Masukkan nominal target tabungan yang valid');
       return;
     }
 
     if (!targetDate) {
-      Alert.alert('Perhatian', 'Tentukan tanggal target pencapaian');
+      Alert.alert('Perhatian', 'Tentukan tanggal target pencapaian tabungan');
       return;
     }
 
     setIsSaving(true);
     try {
-      const goalData: Omit<SavingsGoal, 'current_amount' | 'status' | 'created_at' | 'updated_at'> = {
-        id: initialGoal?.id || `goal-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+      const id = initialGoal?.id || `goal-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`;
+      await onSave({
+        id,
         name: name.trim(),
         target_amount: targetAmount,
         target_date: targetDate,
         description: description.trim(),
         icon: selectedIcon,
         color: selectedColor,
-      };
+      });
 
-      await onSave(goalData);
       onClose();
     } catch (error) {
       Alert.alert('Error', 'Gagal menyimpan target tabungan');
@@ -136,7 +138,7 @@ export const SavingsGoalModal: React.FC<SavingsGoalModalProps> = ({
 
     Alert.alert(
       'Hapus Target Tabungan',
-      'Apakah Anda yakin ingin menghapus target tabungan ini beserta riwayat kontribusinya?',
+      'Apakah Anda yakin ingin menghapus target ini beserta riwayat setorannya?',
       [
         { text: 'Batal', style: 'cancel' },
         {
@@ -156,138 +158,142 @@ export const SavingsGoalModal: React.FC<SavingsGoalModalProps> = ({
   };
 
   return (
-    <Modal
-      visible={visible}
-      animationType="slide"
-      transparent
-      onRequestClose={onClose}
-    >
+    <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         style={styles.overlay}
       >
-        <View style={styles.sheet}>
+        <TouchableOpacity style={styles.backdrop} activeOpacity={1} onPress={onClose} />
+        <View style={[styles.sheet, { backgroundColor: colors.surface, borderTopColor: colors.border }]}>
+          <View style={styles.handleContainer}>
+            <View
+              style={[
+                styles.handle,
+                { backgroundColor: isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.15)' },
+              ]}
+            />
+          </View>
+
           <View style={styles.header}>
-            <Text style={styles.title}>
-              {initialGoal ? 'Ubah Target Tabungan' : 'Target Tabungan Baru'}
+            <Text style={[styles.title, { color: colors.text }]}>
+              {initialGoal ? 'Ubah Target Tabungan' : 'Target Impian Baru'}
             </Text>
             <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
-              <X size={22} color={Colors.textSecondary} />
+              <X size={22} color={colors.textSecondary} />
             </TouchableOpacity>
           </View>
 
-          <ScrollView showsVerticalScrollIndicator={false}>
+          <ScrollView
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+            contentContainerStyle={styles.scrollContent}
+          >
             {/* Goal Name */}
-            <View style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>Nama Target Tabungan</Text>
-              <TextInput
-                style={styles.textInput}
-                value={name}
-                onChangeText={setName}
-                placeholder="Contoh: Beli Laptop Baru, Liburan, Dana Darurat"
-                placeholderTextColor={Colors.textMuted}
-              />
+            <View style={styles.fieldBlock}>
+              <Text style={[styles.label, { color: colors.textMuted }]}>Nama Target / Impian</Text>
+              <View style={[styles.inputWrap, { backgroundColor: isDark ? colors.surfaceElevated : '#F9FBF9', borderColor: colors.border }]}>
+                <TextInput
+                  style={[styles.input, { color: colors.text }]}
+                  placeholder="cth. Liburan Jepang, MacBook Pro, Dana Darurat"
+                  placeholderTextColor={colors.textMuted}
+                  value={name}
+                  onChangeText={setName}
+                />
+              </View>
             </View>
 
             {/* Target Amount */}
-            <View style={styles.amountContainer}>
-              <Text style={styles.amountLabel}>Target Nominal (IDR)</Text>
-              <View style={styles.amountInputRow}>
-                <Text style={styles.currencyPrefix}>Rp</Text>
+            <View style={styles.fieldBlock}>
+              <Text style={[styles.label, { color: colors.textMuted }]}>Nominal Target (IDR)</Text>
+              <View style={[styles.inputWrap, { backgroundColor: isDark ? colors.surfaceElevated : '#F9FBF9', borderColor: colors.border }]}>
+                <Text style={[styles.prefix, { color: colors.primary }]}>Rp</Text>
                 <TextInput
-                  style={styles.amountInput}
+                  style={[styles.input, { color: colors.text }]}
+                  placeholder="0"
+                  placeholderTextColor={colors.textMuted}
+                  keyboardType="numeric"
                   value={targetAmountRaw ? formatIDR(parseIDR(targetAmountRaw), false) : ''}
                   onChangeText={handleAmountChange}
-                  placeholder="0"
-                  placeholderTextColor={Colors.textMuted}
-                  keyboardType="numeric"
                 />
               </View>
             </View>
 
             {/* Target Date */}
-            <View style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>Target Tanggal Selesai (YYYY-MM-DD)</Text>
-              <TextInput
-                style={styles.textInput}
-                value={targetDate}
-                onChangeText={setTargetDate}
-                placeholder="YYYY-MM-DD"
-                placeholderTextColor={Colors.textMuted}
-              />
+            <View style={styles.fieldBlock}>
+              <Text style={[styles.label, { color: colors.textMuted }]}>Target Tercapai (YYYY-MM-DD)</Text>
+              <View style={[styles.inputWrap, { backgroundColor: isDark ? colors.surfaceElevated : '#F9FBF9', borderColor: colors.border }]}>
+                <Calendar size={18} color={colors.textMuted} style={{ marginRight: 8 }} />
+                <TextInput
+                  style={[styles.input, { color: colors.text }]}
+                  placeholder="YYYY-MM-DD"
+                  placeholderTextColor={colors.textMuted}
+                  value={targetDate}
+                  onChangeText={setTargetDate}
+                />
+              </View>
             </View>
 
-            {/* Icon Selector */}
-            <Text style={styles.inputLabel}>Pilih Ikon</Text>
-            <View style={styles.iconRow}>
-              {AVAILABLE_ICONS.map((iconName) => {
-                const isSelected = selectedIcon === iconName;
-                return (
-                  <TouchableOpacity
-                    key={iconName}
-                    onPress={() => setSelectedIcon(iconName)}
-                    style={[
-                      styles.iconButton,
-                      isSelected && {
-                        borderColor: selectedColor,
-                        backgroundColor: `${selectedColor}30`,
-                      },
-                    ]}
-                  >
-                    <CategoryIcon
-                      name={iconName}
-                      color={isSelected ? selectedColor : Colors.textSecondary}
-                      size={20}
-                    />
-                  </TouchableOpacity>
-                );
-              })}
+            {/* Icon Picker */}
+            <View style={styles.fieldBlock}>
+              <Text style={[styles.label, { color: colors.textMuted }]}>Pilih Ikon</Text>
+              <View style={styles.iconsRow}>
+                {AVAILABLE_ICONS.map((iconName) => {
+                  const isSelected = selectedIcon === iconName;
+                  return (
+                    <TouchableOpacity
+                      key={iconName}
+                      onPress={() => setSelectedIcon(iconName)}
+                      style={[
+                        styles.iconBtn,
+                        {
+                          backgroundColor: isSelected
+                            ? isDark ? 'rgba(57, 217, 138, 0.2)' : colors.primarySoft
+                            : isDark ? colors.surfaceElevated : '#F9FBF9',
+                          borderColor: isSelected ? colors.primary : colors.border,
+                        },
+                      ]}
+                    >
+                      <CategoryIcon
+                        name={iconName}
+                        color={isSelected ? colors.primary : colors.textSecondary}
+                        size={20}
+                      />
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
             </View>
 
-            {/* Color Selector */}
-            <Text style={styles.inputLabel}>Pilih Warna</Text>
-            <View style={styles.colorRow}>
-              {AVAILABLE_COLORS.map((color) => {
-                const isSelected = selectedColor === color;
-                return (
-                  <TouchableOpacity
-                    key={color}
-                    onPress={() => setSelectedColor(color)}
-                    style={[
-                      styles.colorDot,
-                      { backgroundColor: color },
-                      isSelected && styles.colorDotSelected,
-                    ]}
-                  />
-                );
-              })}
+            {/* Note / Description */}
+            <View style={styles.fieldBlock}>
+              <Text style={[styles.label, { color: colors.textMuted }]}>Catatan Motivasi (Opsional)</Text>
+              <View style={[styles.inputWrap, { backgroundColor: isDark ? colors.surfaceElevated : '#F9FBF9', borderColor: colors.border }]}>
+                <TextInput
+                  style={[styles.input, { color: colors.text }]}
+                  placeholder="cth. Sisihkan tiap gajian minimal Rp 1 jt"
+                  placeholderTextColor={colors.textMuted}
+                  value={description}
+                  onChangeText={setDescription}
+                />
+              </View>
             </View>
 
-            {/* Description */}
-            <View style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>Catatan / Motivasi (Opsional)</Text>
-              <TextInput
-                style={styles.textInput}
-                value={description}
-                onChangeText={setDescription}
-                placeholder="Target realistis per bulan..."
-                placeholderTextColor={Colors.textMuted}
-              />
-            </View>
-
-            {/* Footer Buttons */}
-            <View style={styles.footer}>
+            {/* Buttons */}
+            <View style={styles.actionRow}>
               <Button
-                title={initialGoal ? 'Perbarui Target' : 'Buat Target Tabungan'}
+                title={initialGoal ? 'Perbarui Target' : 'Buat Target Impian'}
                 onPress={handleSubmit}
                 loading={isSaving}
-                style={styles.saveBtn}
+                size="lg"
+                style={{ flex: 1 }}
               />
 
               {initialGoal && onDelete && (
-                <TouchableOpacity onPress={handleDelete} style={styles.deleteBtn}>
-                  <Trash2 size={18} color={Colors.expense} />
-                  <Text style={styles.deleteText}>Hapus Target</Text>
+                <TouchableOpacity
+                  style={[styles.deleteBtn, { borderColor: colors.expense }]}
+                  onPress={handleDelete}
+                >
+                  <Trash2 size={20} color={colors.expense} />
                 </TouchableOpacity>
               )}
             </View>
@@ -301,127 +307,98 @@ export const SavingsGoalModal: React.FC<SavingsGoalModalProps> = ({
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.75)',
     justifyContent: 'flex-end',
   },
+  backdrop: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.55)',
+  },
   sheet: {
-    backgroundColor: '#101915',
     borderTopLeftRadius: BorderRadius.xl,
     borderTopRightRadius: BorderRadius.xl,
-    borderWidth: 1,
-    borderColor: Colors.cardBorder,
-    padding: Spacing.lg,
-    maxHeight: '88%',
+    borderTopWidth: 1,
+    paddingHorizontal: 20,
+    paddingBottom: 24,
+    maxHeight: '90%',
+  },
+  handleContainer: {
+    alignItems: 'center',
+    paddingVertical: 10,
+  },
+  handle: {
+    width: 44,
+    height: 4,
+    borderRadius: 2,
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: Spacing.md,
+    marginBottom: 14,
   },
   title: {
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: '700',
-    color: Colors.text,
   },
   closeBtn: {
-    padding: Spacing.xs,
+    padding: 4,
   },
-  inputGroup: {
-    marginBottom: Spacing.md,
+  scrollContent: {
+    paddingBottom: 16,
   },
-  inputLabel: {
-    fontSize: 13,
-    color: Colors.textSecondary,
-    marginBottom: 6,
-    fontWeight: '500',
+  fieldBlock: {
+    marginBottom: 14,
   },
-  textInput: {
-    backgroundColor: Colors.card,
-    borderWidth: 1,
-    borderColor: Colors.cardBorder,
-    borderRadius: BorderRadius.md,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    color: Colors.text,
-    fontSize: 14,
-  },
-  amountContainer: {
-    backgroundColor: Colors.card,
-    borderRadius: BorderRadius.md,
-    padding: Spacing.md,
-    borderWidth: 1,
-    borderColor: Colors.cardBorder,
-    marginBottom: Spacing.md,
-  },
-  amountLabel: {
-    color: Colors.textSecondary,
+  label: {
     fontSize: 12,
-    fontWeight: '500',
-    marginBottom: 4,
+    fontWeight: '600',
+    marginBottom: 6,
   },
-  amountInputRow: {
+  inputWrap: {
     flexDirection: 'row',
     alignItems: 'center',
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    paddingHorizontal: 12,
+    height: 46,
   },
-  currencyPrefix: {
-    fontSize: 24,
+  prefix: {
+    fontSize: 14,
     fontWeight: '700',
-    color: Colors.primary,
-    marginRight: 8,
+    marginRight: 6,
   },
-  amountInput: {
+  input: {
     flex: 1,
-    fontSize: 24,
-    fontWeight: '700',
-    color: Colors.text,
-    fontVariant: ['tabular-nums'],
+    fontSize: 14,
   },
-  iconRow: {
+  iconsRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 8,
-    marginBottom: Spacing.md,
+    gap: 10,
   },
-  iconButton: {
-    padding: 6,
+  iconBtn: {
+    width: 44,
+    height: 44,
     borderRadius: BorderRadius.md,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.08)',
-    backgroundColor: 'rgba(255, 255, 255, 0.02)',
-  },
-  colorRow: {
-    flexDirection: 'row',
-    gap: 12,
-    marginBottom: Spacing.lg,
-  },
-  colorDot: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-  },
-  colorDotSelected: {
-    borderWidth: 3,
-    borderColor: '#FFF',
-  },
-  footer: {
-    marginTop: Spacing.md,
-    marginBottom: Spacing.xl,
-    gap: 12,
-  },
-  saveBtn: {
-    width: '100%',
-  },
-  deleteBtn: {
-    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 12,
-    gap: 6,
+    borderWidth: 1,
   },
-  deleteText: {
-    color: Colors.expense,
-    fontSize: 14,
-    fontWeight: '600',
+  actionRow: {
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 14,
+  },
+  deleteBtn: {
+    width: 50,
+    height: 50,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });

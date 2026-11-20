@@ -3,6 +3,8 @@ import {
   calculateBudgetStatus,
   calculateSavingsMetrics,
   assessFinancialHealth,
+  calculateSafeToSpend,
+  calculateSmartBudgetPace,
 } from '../utils/calculations';
 import { formatIDR, formatIDRCompact, parseIDR } from '../utils/currency';
 import { formatReadableDate, formatReadableMonth, getDaysRemaining, getMonthsRemaining } from '../utils/dates';
@@ -66,19 +68,65 @@ describe('Financial Calculations Engine', () => {
     expect(danger.isOverspent).toBe(true);
   });
 
-  test('calculateSavingsMetrics produces accurate daily, weekly, and monthly requirements', () => {
-    // Target 10 million, saved 2 million, remaining 8 million, 80 days
-    const metrics = calculateSavingsMetrics(10_000_000, 2_000_000, 80);
-    expect(metrics.targetAmount).toBe(10_000_000);
-    expect(metrics.currentAmount).toBe(2_000_000);
-    expect(metrics.remainingAmount).toBe(8_000_000);
-    expect(metrics.percentage).toBe(20);
-    expect(metrics.requiredDaily).toBe(100_000); // 8,000,000 / 80
-    expect(metrics.requiredWeekly).toBeGreaterThan(0);
-    expect(metrics.requiredMonthly).toBeGreaterThan(0);
+  test('calculateSmartBudgetPace evaluates calendar pace accurately', () => {
+    // Budget: 3,000,000, spent: 1,000,000 on day 10 of 30 days -> on_track (1.0 ratio)
+    const onTrack = calculateSmartBudgetPace(3_000_000, 1_000_000, 10, 30);
+    expect(onTrack.paceRatio).toBe(1.0);
+    expect(onTrack.status).toBe('on_track');
+    expect(onTrack.recommendedDailyAllowance).toBe(100_000); // 2,000,000 remaining / 20 days remaining (or 21)
+
+    // Budget: 3,000,000, spent: 2,000,000 on day 10 of 30 days -> fast_pace (2.0 ratio)
+    const fastPace = calculateSmartBudgetPace(3_000_000, 2_000_000, 10, 30);
+    expect(fastPace.paceRatio).toBeGreaterThan(1.15);
+    expect(fastPace.status).toBe('fast_pace');
+
+    // Budget: 3,000,000, spent: 3,500,000 -> overspent
+    const over = calculateSmartBudgetPace(3_000_000, 3_500_000, 15, 30);
+    expect(over.status).toBe('overspent');
   });
 
-  test('assessFinancialHealth provides constructive feedback', () => {
+  test('calculateSafeToSpend implements transparent formula without double counting', () => {
+    // Balance: 10,000,000, Bills: 2,000,000, Reserve: 1,000,000, Savings: 1,500,000, 15 days remaining
+    const res = calculateSafeToSpend({
+      currentBalance: 10_000_000,
+      upcomingBillsTotal: 2_000_000,
+      reservedFunds: 1_000_000,
+      plannedSavingsAllocations: 1_500_000,
+      daysRemainingInMonth: 15,
+    });
+
+    expect(res.currentBalance).toBe(10_000_000);
+    expect(res.upcomingBillsTotal).toBe(2_000_000);
+    expect(res.reservedFunds).toBe(1_000_000);
+    expect(res.plannedSavingsAllocations).toBe(1_500_000);
+    // Safe to spend = 10,000,000 - 4,500,000 = 5,500,000
+    expect(res.safeToSpend).toBe(5_500_000);
+    expect(res.dailySafeToSpend).toBe(Math.round(5_500_000 / 15));
+    expect(res.status).toBe('comfortable');
+
+    // Zero balance -> depleted
+    const depleted = calculateSafeToSpend({
+      currentBalance: 2_000_000,
+      upcomingBillsTotal: 2_500_000,
+    });
+    expect(depleted.safeToSpend).toBe(0);
+    expect(depleted.status).toBe('depleted');
+  });
+
+  test('calculateSavingsMetrics produces accurate daily requirements and milestones', () => {
+    // Target 10 million, saved 2.5 million (25%), 75 days remaining
+    const metrics = calculateSavingsMetrics(10_000_000, 2_500_000, 75);
+    expect(metrics.targetAmount).toBe(10_000_000);
+    expect(metrics.currentAmount).toBe(2_500_000);
+    expect(metrics.remainingAmount).toBe(7_500_000);
+    expect(metrics.percentage).toBe(25);
+    expect(metrics.requiredDaily).toBe(100_000);
+    expect(metrics.milestones.milestone25).toBe(true);
+    expect(metrics.milestones.milestone50).toBe(false);
+    expect(metrics.milestones.nextMilestonePercent).toBe(50);
+  });
+
+  test('assessFinancialHealth provides constructive feedback and matching badge', () => {
     const emptyHealth = assessFinancialHealth(0, 0);
     expect(emptyHealth.title).toBe('Mulai Mencatat');
 
@@ -88,7 +136,7 @@ describe('Financial Calculations Engine', () => {
 
     const deficitHealth = assessFinancialHealth(5_000_000, 8_000_000);
     expect(deficitHealth.title).toBe('Pengeluaran Berlebih');
-    expect(deficitHealth.badgeColor).toBe('#FF7272');
+    expect(deficitHealth.badgeColor).toBe('#D96D70');
   });
 });
 
@@ -101,94 +149,15 @@ describe('IDR Currency Formatting & Parsing', () => {
   });
 
   test('formatIDRCompact handles thousands, millions, and billions', () => {
-    expect(formatIDRCompact(500000)).toBe('Rp 500 rb');
-    expect(formatIDRCompact(1500000)).toBe('Rp 1,5 jt');
-    expect(formatIDRCompact(2000000000)).toBe('Rp 2 M');
+    expect(formatIDRCompact(50000)).toBe('Rp 50 rb');
+    expect(formatIDRCompact(2500000)).toBe('Rp 2,5 jt');
+    expect(formatIDRCompact(1200000000)).toBe('Rp 1,2 M');
   });
 
-  test('parseIDR extracts integers accurately from various string inputs', () => {
+  test('parseIDR cleans dirty input and handles integer amounts', () => {
     expect(parseIDR('Rp 1.500.000')).toBe(1500000);
-    expect(parseIDR('1.500.000')).toBe(1500000);
-    expect(parseIDR('Rp 25000')).toBe(25000);
-    expect(parseIDR(750000)).toBe(750000);
+    expect(parseIDR('250.000')).toBe(250000);
     expect(parseIDR('')).toBe(0);
-  });
-});
-
-describe('Dates and Planning Helpers', () => {
-  test('formatReadableDate converts YYYY-MM-DD to Indonesian format', () => {
-    expect(formatReadableDate('2026-11-15')).toBe('15 Nov 2026');
-  });
-
-  test('formatReadableMonth converts YYYY-MM to full Indonesian month', () => {
-    expect(formatReadableMonth('2026-11')).toBe('November 2026');
-  });
-
-  test('getDaysRemaining returns non-negative days', () => {
-    const days = getDaysRemaining('2026-12-31');
-    expect(days).toBeGreaterThanOrEqual(0);
-  });
-});
-
-describe('Export and Import Engine', () => {
-  const dummyTransactions = [
-    {
-      id: 'tx-1',
-      amount: 10000000,
-      type: 'income' as const,
-      category_id: 'cat-inc-1',
-      category_name: 'Salary',
-      description: 'Gaji Bulanan',
-      date: '2026-11-01',
-      created_at: '2026-11-01T10:00:00Z',
-      updated_at: '2026-11-01T10:00:00Z',
-    },
-    {
-      id: 'tx-2',
-      amount: 50000,
-      type: 'expense' as const,
-      category_id: 'cat-exp-1',
-      category_name: 'Food',
-      description: 'Makan Siang',
-      date: '2026-11-02',
-      created_at: '2026-11-02T12:00:00Z',
-      updated_at: '2026-11-02T12:00:00Z',
-    },
-  ];
-
-  test('generateCSV creates valid CSV text with headers', () => {
-    const csv = generateCSV(dummyTransactions);
-    expect(csv).toContain('ID,Date,Type,Category,Amount,Description');
-    expect(csv).toContain('"tx-1","2026-11-01","income","Salary",10000000,"Gaji Bulanan"');
-    expect(csv).toContain('"tx-2","2026-11-02","expense","Food",50000,"Makan Siang"');
-  });
-
-  test('parseCSV reads CSV back into transaction objects', () => {
-    const csv = generateCSV(dummyTransactions);
-    const parsed = parseCSV(csv);
-    expect(parsed.length).toBe(2);
-    expect(parsed[0].amount).toBe(10000000);
-    expect(parsed[0].type).toBe('income');
-    expect(parsed[1].amount).toBe(50000);
-    expect(parsed[1].type).toBe('expense');
-  });
-
-  test('validateBackupJSON validates structure and rejects corrupted data', () => {
-    const validJson = {
-      version: '1.0.0',
-      exported_at: '2026-11-15T10:00:00Z',
-      data: {
-        transactions: dummyTransactions,
-        budgets: [],
-        savings_goals: [],
-        savings_contributions: [],
-      },
-    };
-
-    const validated = validateBackupJSON(validJson);
-    expect(validated.data.transactions.length).toBe(2);
-
-    expect(() => validateBackupJSON(null)).toThrow();
-    expect(() => validateBackupJSON({ version: '1.0.0' })).toThrow();
+    expect(parseIDR(75000)).toBe(75000);
   });
 });

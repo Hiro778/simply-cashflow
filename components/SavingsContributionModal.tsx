@@ -10,7 +10,8 @@ import {
   Platform,
   Alert,
 } from 'react-native';
-import { Colors, Spacing, BorderRadius } from '../constants/theme';
+import { useTheme } from '../hooks/useTheme';
+import { Spacing, BorderRadius } from '../constants/theme';
 import { SavingsGoal } from '../database/schema';
 import { Button } from './Button';
 import { formatIDR, parseIDR } from '../utils/currency';
@@ -30,6 +31,8 @@ export const SavingsContributionModal: React.FC<SavingsContributionModalProps> =
   goal,
   onAddContribution,
 }) => {
+  const { colors, isDark } = useTheme();
+
   const [amountRaw, setAmountRaw] = useState('');
   const [date, setDate] = useState(getTodayString());
   const [note, setNote] = useState('');
@@ -75,68 +78,69 @@ export const SavingsContributionModal: React.FC<SavingsContributionModalProps> =
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         style={styles.overlay}
       >
-        <View style={styles.sheet}>
+        <TouchableOpacity style={styles.backdrop} activeOpacity={1} onPress={onClose} />
+        <View style={[styles.sheet, { backgroundColor: colors.surface, borderTopColor: colors.border }]}>
+          <View style={styles.handleContainer}>
+            <View
+              style={[
+                styles.handle,
+                { backgroundColor: isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.15)' },
+              ]}
+            />
+          </View>
+
           <View style={styles.header}>
             <View>
-              <Text style={styles.title}>Setor Tabungan</Text>
-              <Text style={styles.subtitle}>{goal.name}</Text>
+              <Text style={[styles.title, { color: colors.text }]}>Setor Tabungan</Text>
+              <Text style={[styles.subtitle, { color: colors.textSecondary }]}>{goal.name}</Text>
             </View>
             <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
-              <X size={22} color={Colors.textSecondary} />
+              <X size={22} color={colors.textSecondary} />
             </TouchableOpacity>
           </View>
 
           {/* Amount Input */}
           <View style={styles.amountContainer}>
-            <Text style={styles.amountLabel}>Jumlah Setoran (IDR)</Text>
+            <Text style={[styles.amountLabel, { color: colors.textMuted }]}>
+              Jumlah Setoran (IDR)
+            </Text>
             <View style={styles.amountInputRow}>
-              <Text style={styles.currencyPrefix}>Rp</Text>
+              <Text style={[styles.currencyPrefix, { color: colors.primary }]}>Rp</Text>
               <TextInput
-                style={styles.amountInput}
+                style={[styles.amountInput, { color: colors.text, borderBottomColor: colors.border }]}
                 value={amountRaw ? formatIDR(parseIDR(amountRaw), false) : ''}
                 onChangeText={handleAmountChange}
                 placeholder="0"
-                placeholderTextColor={Colors.textMuted}
+                placeholderTextColor={colors.textMuted}
                 keyboardType="numeric"
                 autoFocus
               />
             </View>
           </View>
 
-          {/* Date */}
-          <View style={styles.inputGroup}>
-            <Text style={styles.inputLabel}>Tanggal Setor</Text>
-            <TextInput
-              style={styles.textInput}
-              value={date}
-              onChangeText={setDate}
-              placeholder="YYYY-MM-DD"
-              placeholderTextColor={Colors.textMuted}
-            />
+          {/* Note Input */}
+          <View style={styles.noteContainer}>
+            <Text style={[styles.noteLabel, { color: colors.textMuted }]}>
+              Catatan Setoran (Opsional)
+            </Text>
+            <View style={[styles.noteInputWrap, { backgroundColor: isDark ? colors.surfaceElevated : '#F9FBF9', borderColor: colors.border }]}>
+              <TextInput
+                style={[styles.noteInput, { color: colors.text }]}
+                placeholder="cth. Bonus proyek, sisa jajan mingguan"
+                placeholderTextColor={colors.textMuted}
+                value={note}
+                onChangeText={setNote}
+              />
+            </View>
           </View>
 
-          {/* Note */}
-          <View style={styles.inputGroup}>
-            <Text style={styles.inputLabel}>Catatan (Opsional)</Text>
-            <TextInput
-              style={styles.textInput}
-              value={note}
-              onChangeText={setNote}
-              placeholder="Contoh: Sisihan bonus projek"
-              placeholderTextColor={Colors.textMuted}
-            />
-          </View>
-
-          {/* Submit Button */}
-          <View style={styles.footer}>
-            <Button
-              title="Konfirmasi Setoran"
-              onPress={handleSubmit}
-              loading={isSaving}
-              icon={<PlusCircle size={18} color="#080D0B" />}
-              style={styles.saveBtn}
-            />
-          </View>
+          <Button
+            title="Konfirmasi Setoran Tabungan"
+            onPress={handleSubmit}
+            loading={isSaving}
+            size="lg"
+            style={styles.saveBtn}
+          />
         </View>
       </KeyboardAvoidingView>
     </Modal>
@@ -146,92 +150,96 @@ export const SavingsContributionModal: React.FC<SavingsContributionModalProps> =
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.75)',
     justifyContent: 'flex-end',
   },
+  backdrop: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.55)',
+  },
   sheet: {
-    backgroundColor: '#101915',
     borderTopLeftRadius: BorderRadius.xl,
     borderTopRightRadius: BorderRadius.xl,
-    borderWidth: 1,
-    borderColor: Colors.cardBorder,
-    padding: Spacing.lg,
+    borderTopWidth: 1,
+    paddingHorizontal: 20,
+    paddingBottom: 28,
+  },
+  handleContainer: {
+    alignItems: 'center',
+    paddingVertical: 10,
+  },
+  handle: {
+    width: 44,
+    height: 4,
+    borderRadius: 2,
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: Spacing.lg,
+    marginBottom: 16,
   },
   title: {
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: '700',
-    color: Colors.text,
   },
   subtitle: {
     fontSize: 13,
-    color: Colors.primary,
     marginTop: 2,
-    fontWeight: '600',
   },
   closeBtn: {
-    padding: Spacing.xs,
+    padding: 4,
   },
   amountContainer: {
-    backgroundColor: Colors.card,
-    borderRadius: BorderRadius.md,
-    padding: Spacing.md,
-    borderWidth: 1,
-    borderColor: Colors.cardBorder,
-    marginBottom: Spacing.md,
+    marginVertical: 14,
+    alignItems: 'center',
   },
   amountLabel: {
-    color: Colors.textSecondary,
     fontSize: 12,
-    fontWeight: '500',
-    marginBottom: 4,
+    fontWeight: '600',
+    marginBottom: 8,
   },
   amountInputRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
   },
   currencyPrefix: {
-    fontSize: 24,
+    fontSize: 22,
     fontWeight: '700',
-    color: Colors.primary,
-    marginRight: 8,
+    marginRight: 6,
   },
   amountInput: {
-    flex: 1,
-    fontSize: 24,
-    fontWeight: '700',
-    color: Colors.text,
+    fontSize: 30,
+    fontWeight: '800',
+    minWidth: 180,
+    textAlign: 'center',
+    borderBottomWidth: 1.5,
+    paddingVertical: 4,
     fontVariant: ['tabular-nums'],
   },
-  inputGroup: {
-    marginBottom: Spacing.md,
+  noteContainer: {
+    marginVertical: 12,
   },
-  inputLabel: {
-    fontSize: 13,
-    color: Colors.textSecondary,
+  noteLabel: {
+    fontSize: 12,
+    fontWeight: '600',
     marginBottom: 6,
-    fontWeight: '500',
   },
-  textInput: {
-    backgroundColor: Colors.card,
-    borderWidth: 1,
-    borderColor: Colors.cardBorder,
+  noteInputWrap: {
     borderRadius: BorderRadius.md,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    color: Colors.text,
+    borderWidth: 1,
+    paddingHorizontal: 12,
+    height: 46,
+    justifyContent: 'center',
+  },
+  noteInput: {
     fontSize: 14,
   },
-  footer: {
-    marginTop: Spacing.md,
-    marginBottom: Spacing.xl,
-  },
   saveBtn: {
-    width: '100%',
+    marginTop: 18,
   },
 });

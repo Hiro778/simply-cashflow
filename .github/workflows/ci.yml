@@ -75,8 +75,9 @@ jobs:
           mkdir -p dist
           APK_PATH=$(find android/app/build/outputs/apk/release/ -name "*.apk" | head -n 1)
           if [ -f "$APK_PATH" ]; then
+            cp "$APK_PATH" dist/simply-cashflow-2.0.0.apk
             cp "$APK_PATH" dist/simply-cashflow.apk
-            echo "APK copied successfully: $(ls -lh dist/simply-cashflow.apk)"
+            echo "APK packaged successfully: $(ls -lh dist/)"
           else
             echo "Error: Release APK not found"
             exit 1
@@ -85,32 +86,26 @@ jobs:
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: simply-cashflow-apk
-          path: dist/simply-cashflow.apk
+          name: simply-cashflow-2.0.0-apk
+          path: dist/simply-cashflow-2.0.0.apk
 
       - name: Create GitHub Release
         if: startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/main'
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v1.0.0
-          name: Simply Cashflow v1.0.0
+          tag_name: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || 'v2.0.0' }}
+          name: Simply Cashflow ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || 'v2.0.0' }}
           body: |
-            # Simply Cashflow v1.0.0 — Financial OS for Android
-            
-            Autonomous financial management application built with React Native, Expo, and SQLite.
-            
-            ### ✨ Highlights
-            - **100% Offline-First:** SQLite database stored purely locally on your device.
-            - **Zero Registrations & Zero Tracking:** Complete privacy without external telemetry.
-            - **Universal Android Compatibility:** Targets Android 7.0+ (API 24+) devices.
-            - **Financial OS UI:** Premium dark-first glassmorphism design system.
-            - **Accurate IDR Currency Calculations:** Integer-based Indonesian Rupiah math.
-            - **Visual Analytics:** Donut charts, weekly spending trends, and budget health alerts.
-            - **Savings Goal Engine:** Target tracking with dynamic daily/weekly/monthly savings calculators.
-            - **Data Portability:** Full JSON backup and CSV transaction export/import.
-            
-            ### 📱 Installation
-            Download and install `simply-cashflow.apk` directly on any modern Android smartphone.
-          files: dist/simply-cashflow.apk
+            # Simply Cashflow 2.0.0 — 100% Local Financial Operating System for Android
+
+            ### 🚀 Highlights in 2.0.0
+            - **Smart Capture:** Fully local Android Notification Listener for DANA, GoPay, OVO, ShopeePay, BCA, BRImo, and Livin' by Mandiri.
+            - **Safe to Spend & Smart Budget Pace:** Transparent liquidity math and calendar velocity metrics.
+            - **Savings Planner 2.0 & Recurring Engine:** Milestones, next due dates, and auto-advancement.
+            - **Apple Design & Material Ergonomics:** Dark/Light dual themes, tabular numerals, fluid bottom sheets.
+            - **100% Offline-First Privacy:** Zero cloud, zero analytics, zero external API dependencies.
+          files: |
+            dist/simply-cashflow-2.0.0.apk
+            dist/simply-cashflow.apk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

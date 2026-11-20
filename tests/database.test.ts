@@ -14,15 +14,15 @@ describe('Database Schema & Repository Logic', () => {
     expect(DEFAULT_INCOME_CATEGORIES.length).toBe(5);
     expect(DEFAULT_EXPENSE_CATEGORIES.length).toBe(8);
 
-    const salary = DEFAULT_INCOME_CATEGORIES.find((c) => c.name === 'Salary');
+    const salary = DEFAULT_INCOME_CATEGORIES.find((c) => c.name === 'Gaji');
     expect(salary).toBeDefined();
     expect(salary?.type).toBe('income');
     expect(salary?.icon).toBe('Briefcase');
 
-    const food = DEFAULT_EXPENSE_CATEGORIES.find((c) => c.name === 'Food');
+    const food = DEFAULT_EXPENSE_CATEGORIES.find((c) => c.name === 'Makanan & Minuman');
     expect(food).toBeDefined();
     expect(food?.type).toBe('expense');
-    expect(food?.color).toBe('#FF7272');
+    expect(food?.color).toBe('#D96D70');
   });
 
   test('Transaction CRUD simulation maintains integrity and integer precision', () => {

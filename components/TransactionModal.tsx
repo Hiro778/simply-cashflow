@@ -11,13 +11,19 @@ import {
   Platform,
   Alert,
 } from 'react-native';
-import { Colors, Spacing, BorderRadius } from '../constants/theme';
-import { Category, Transaction } from '../database/schema';
+import { useTheme } from '../hooks/useTheme';
+import { BorderRadius, Spacing } from '../constants/theme';
+import {
+  Category,
+  Transaction,
+  TransactionSource,
+  PaymentMethod,
+} from '../database/schema';
 import { CategoryIcon } from './CategoryIcon';
 import { Button } from './Button';
 import { formatIDR, parseIDR } from '../utils/currency';
 import { getTodayString } from '../utils/dates';
-import { X, Trash2, ArrowUpRight, ArrowDownLeft } from 'lucide-react-native';
+import { X, Trash2, ArrowUpRight, ArrowDownLeft, Calendar, Clock, Store } from 'lucide-react-native';
 
 interface TransactionModalProps {
   visible: boolean;
@@ -28,6 +34,19 @@ interface TransactionModalProps {
   onDelete?: (id: string) => Promise<void>;
 }
 
+const SOURCES: TransactionSource[] = [
+  'manual',
+  'DANA',
+  'GoPay',
+  'OVO',
+  'ShopeePay',
+  'BCA',
+  'BRI',
+  'Mandiri',
+  'QRIS',
+  'other',
+];
+
 export const TransactionModal: React.FC<TransactionModalProps> = ({
   visible,
   onClose,
@@ -36,10 +55,15 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
   onSave,
   onDelete,
 }) => {
+  const { colors, isDark } = useTheme();
+
   const [type, setType] = useState<'income' | 'expense'>('expense');
   const [amountRaw, setAmountRaw] = useState<string>('');
   const [selectedCategory, setSelectedCategory] = useState<Category | null>(null);
+  const [merchant, setMerchant] = useState<string>('');
+  const [source, setSource] = useState<TransactionSource>('manual');
   const [date, setDate] = useState<string>(getTodayString());
+  const [time, setTime] = useState<string>('');
   const [description, setDescription] = useState<string>('');
   const [isSaving, setIsSaving] = useState<boolean>(false);
 
@@ -54,19 +78,25 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
           name: initialTransaction.category_name,
           type: initialTransaction.type,
           icon: 'Folder',
-          color: Colors.primary,
+          color: colors.primary,
           is_default: 1,
           created_at: '',
         }
       );
+      setMerchant(initialTransaction.merchant || '');
+      setSource(initialTransaction.source || 'manual');
       setDate(initialTransaction.date);
+      setTime(initialTransaction.time || '');
       setDescription(initialTransaction.description || '');
     } else {
       setType('expense');
       setAmountRaw('');
       const defaultCat = categories.find((c) => c.type === 'expense');
       setSelectedCategory(defaultCat || null);
+      setMerchant('');
+      setSource('manual');
       setDate(getTodayString());
+      setTime(new Date().toTimeString().substring(0, 5));
       setDescription('');
     }
   }, [initialTransaction, visible, categories]);
@@ -87,31 +117,38 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
   const handleSubmit = async () => {
     const amount = parseIDR(amountRaw);
     if (amount <= 0) {
-      Alert.alert('Perhatian', 'Masukkan jumlah transaksi yang valid');
+      Alert.alert('Perhatian', 'Masukkan jumlah transaksi yang valid.');
       return;
     }
 
     if (!selectedCategory) {
-      Alert.alert('Perhatian', 'Pilih salah satu kategori transaksi');
+      Alert.alert('Perhatian', 'Pilih salah satu kategori transaksi.');
       return;
     }
 
     setIsSaving(true);
     try {
-      const txData: Omit<Transaction, 'created_at' | 'updated_at'> = {
-        id: initialTransaction?.id || `tx-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+      const id =
+        initialTransaction?.id ||
+        `tx-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
+
+      await onSave({
+        id,
         amount,
         type,
         category_id: selectedCategory.id,
         category_name: selectedCategory.name,
+        merchant: merchant.trim() || undefined,
+        source,
+        payment_method: source === 'manual' ? 'cash' : 'e-wallet',
         description: description.trim(),
-        date: date || getTodayString(),
-      };
+        date,
+        time: time || undefined,
+      });
 
-      await onSave(txData);
       onClose();
     } catch (error) {
-      Alert.alert('Error', 'Gagal menyimpan transaksi. Silakan coba lagi.');
+      Alert.alert('Kesalahan', 'Gagal menyimpan transaksi. Coba lagi.');
     } finally {
       setIsSaving(false);
     }
@@ -120,67 +157,95 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
   const handleDelete = () => {
     if (!initialTransaction || !onDelete) return;
 
-    Alert.alert(
-      'Hapus Transaksi',
-      'Apakah Anda yakin ingin menghapus transaksi ini?',
-      [
-        { text: 'Batal', style: 'cancel' },
-        {
-          text: 'Hapus',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await onDelete(initialTransaction.id);
-              onClose();
-            } catch (err) {
-              Alert.alert('Error', 'Gagal menghapus transaksi');
-            }
-          },
+    Alert.alert('Hapus Transaksi', 'Apakah Anda yakin ingin menghapus catatan ini?', [
+      { text: 'Batal', style: 'cancel' },
+      {
+        text: 'Hapus',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            await onDelete(initialTransaction.id);
+            onClose();
+          } catch (e) {
+            Alert.alert('Gagal', 'Tidak dapat menghapus transaksi.');
+          }
         },
-      ]
-    );
+      },
+    ]);
   };
+
+  const formattedPreview = parseIDR(amountRaw) > 0 ? formatIDR(parseIDR(amountRaw)) : 'Rp 0';
 
   return (
     <Modal
       visible={visible}
-      animationType="slide"
       transparent
+      animationType="slide"
       onRequestClose={onClose}
     >
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         style={styles.overlay}
       >
-        <View style={styles.sheet}>
+        <TouchableOpacity
+          style={styles.backdrop}
+          activeOpacity={1}
+          onPress={onClose}
+        />
+
+        <View
+          style={[
+            styles.sheetContainer,
+            { backgroundColor: colors.surface, borderTopColor: colors.border },
+          ]}
+        >
+          {/* Grabber handle */}
+          <View style={styles.handleContainer}>
+            <View
+              style={[
+                styles.handle,
+                { backgroundColor: isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.15)' },
+              ]}
+            />
+          </View>
+
           {/* Header */}
           <View style={styles.header}>
-            <Text style={styles.title}>
-              {initialTransaction ? 'Ubah Transaksi' : 'Transaksi Baru'}
+            <Text style={[styles.modalTitle, { color: colors.text }]}>
+              {initialTransaction ? 'Ubah Transaksi' : 'Catat Transaksi'}
             </Text>
             <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
-              <X size={22} color={Colors.textSecondary} />
+              <X size={20} color={colors.textSecondary} />
             </TouchableOpacity>
           </View>
 
-          <ScrollView showsVerticalScrollIndicator={false}>
+          <ScrollView
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+            contentContainerStyle={styles.scrollContent}
+          >
             {/* Type Switcher */}
-            <View style={styles.typeSwitcher}>
+            <View style={[styles.typeSwitcher, { backgroundColor: isDark ? '#182820' : colors.primarySoft }]}>
               <TouchableOpacity
-                onPress={() => handleTypeChange('expense')}
                 style={[
                   styles.typeTab,
-                  type === 'expense' && styles.typeTabExpenseActive,
+                  type === 'expense' && [styles.typeTabActive, { backgroundColor: colors.expenseBackground, borderColor: colors.expense }],
                 ]}
+                onPress={() => handleTypeChange('expense')}
               >
                 <ArrowDownLeft
                   size={16}
-                  color={type === 'expense' ? '#FFF' : Colors.textSecondary}
+                  color={type === 'expense' ? colors.expense : colors.textSecondary}
                 />
                 <Text
                   style={[
                     styles.typeTabText,
-                    type === 'expense' && styles.typeTabTextActive,
+                    {
+                      color:
+                        type === 'expense'
+                          ? colors.expense
+                          : colors.textSecondary,
+                    },
                   ]}
                 >
                   Pengeluaran
@@ -188,20 +253,25 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
               </TouchableOpacity>
 
               <TouchableOpacity
-                onPress={() => handleTypeChange('income')}
                 style={[
                   styles.typeTab,
-                  type === 'income' && styles.typeTabIncomeActive,
+                  type === 'income' && [styles.typeTabActive, { backgroundColor: isDark ? 'rgba(57, 217, 138, 0.2)' : '#FFFFFF', borderColor: colors.income }],
                 ]}
+                onPress={() => handleTypeChange('income')}
               >
                 <ArrowUpRight
                   size={16}
-                  color={type === 'income' ? '#080D0B' : Colors.textSecondary}
+                  color={type === 'income' ? colors.income : colors.textSecondary}
                 />
                 <Text
                   style={[
                     styles.typeTabText,
-                    type === 'income' && styles.typeTabIncomeTextActive,
+                    {
+                      color:
+                        type === 'income'
+                          ? colors.income
+                          : colors.textSecondary,
+                    },
                   ]}
                 >
                   Pemasukan
@@ -210,93 +280,217 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
             </View>
 
             {/* Amount Input */}
-            <View style={styles.amountContainer}>
-              <Text style={styles.amountLabel}>Jumlah (IDR)</Text>
-              <View style={styles.amountInputRow}>
-                <Text style={styles.currencyPrefix}>Rp</Text>
+            <View style={styles.amountInputBlock}>
+              <Text style={[styles.inputLabel, { color: colors.textMuted }]}>
+                Jumlah Transaksi (IDR)
+              </Text>
+              <TextInput
+                style={[
+                  styles.amountInput,
+                  {
+                    color: type === 'income' ? colors.income : colors.expense,
+                    borderBottomColor: colors.border,
+                  },
+                ]}
+                placeholder="0"
+                placeholderTextColor={colors.textMuted}
+                keyboardType="numeric"
+                value={amountRaw}
+                onChangeText={handleAmountChange}
+                autoFocus={!initialTransaction}
+              />
+              <Text style={[styles.amountPreview, { color: colors.textSecondary }]}>
+                {formattedPreview}
+              </Text>
+            </View>
+
+            {/* Merchant / Recipient */}
+            <View style={styles.fieldBlock}>
+              <Text style={[styles.inputLabel, { color: colors.textMuted }]}>
+                Merchant / Penerima (Opsional)
+              </Text>
+              <View style={[styles.textInputWrap, { backgroundColor: isDark ? colors.surfaceElevated : '#F9FBF9', borderColor: colors.border }]}>
+                <Store size={18} color={colors.textMuted} style={{ marginRight: 8 }} />
                 <TextInput
-                  style={styles.amountInput}
-                  value={amountRaw ? formatIDR(parseIDR(amountRaw), false) : ''}
-                  onChangeText={handleAmountChange}
-                  placeholder="0"
-                  placeholderTextColor={Colors.textMuted}
-                  keyboardType="numeric"
+                  style={[styles.textInput, { color: colors.text }]}
+                  placeholder="cth. Starbucks, Tokopedia, Gaji Kantor"
+                  placeholderTextColor={colors.textMuted}
+                  value={merchant}
+                  onChangeText={setMerchant}
                 />
               </View>
             </View>
 
             {/* Category Selector */}
-            <Text style={styles.sectionLabel}>Pilih Kategori</Text>
-            <View style={styles.categoryGrid}>
-              {filteredCategories.map((cat) => {
-                const isSelected = selectedCategory?.id === cat.id;
-                return (
-                  <TouchableOpacity
-                    key={cat.id}
-                    onPress={() => setSelectedCategory(cat)}
-                    style={[
-                      styles.categoryCard,
-                      isSelected && {
-                        borderColor: cat.color,
-                        backgroundColor: `${cat.color}25`,
-                      },
-                    ]}
-                  >
-                    <CategoryIcon name={cat.icon} color={cat.color} size={22} />
-                    <Text
+            <View style={styles.fieldBlock}>
+              <Text style={[styles.inputLabel, { color: colors.textMuted }]}>
+                Kategori
+              </Text>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.categoryPillsRow}
+              >
+                {filteredCategories.map((cat) => {
+                  const isSelected = selectedCategory?.id === cat.id;
+                  return (
+                    <TouchableOpacity
+                      key={cat.id}
                       style={[
-                        styles.categoryName,
-                        isSelected && { color: Colors.text, fontWeight: '700' },
+                        styles.catPill,
+                        {
+                          backgroundColor: isSelected
+                            ? isDark
+                              ? 'rgba(57, 217, 138, 0.2)'
+                              : colors.primarySoft
+                            : isDark
+                            ? colors.surfaceElevated
+                            : '#F9FBF9',
+                          borderColor: isSelected
+                            ? colors.primary
+                            : colors.border,
+                        },
                       ]}
-                      numberOfLines={1}
+                      onPress={() => setSelectedCategory(cat)}
                     >
-                      {cat.name}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })}
+                      <CategoryIcon
+                        name={cat.icon}
+                        color={isSelected ? colors.primary : colors.textSecondary}
+                        size={16}
+                      />
+                      <Text
+                        style={[
+                          styles.catPillText,
+                          {
+                            color: isSelected
+                              ? colors.primary
+                              : colors.text,
+                            fontWeight: isSelected ? '700' : '500',
+                          },
+                        ]}
+                      >
+                        {cat.name}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </ScrollView>
             </View>
 
-            {/* Date Input */}
-            <View style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>Tanggal (YYYY-MM-DD)</Text>
-              <TextInput
-                style={styles.textInput}
-                value={date}
-                onChangeText={setDate}
-                placeholder="YYYY-MM-DD"
-                placeholderTextColor={Colors.textMuted}
-              />
+            {/* Source Selector */}
+            <View style={styles.fieldBlock}>
+              <Text style={[styles.inputLabel, { color: colors.textMuted }]}>
+                Sumber Dana / Dompet
+              </Text>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.categoryPillsRow}
+              >
+                {SOURCES.map((s) => {
+                  const isSelected = source === s;
+                  return (
+                    <TouchableOpacity
+                      key={s}
+                      style={[
+                        styles.sourcePill,
+                        {
+                          backgroundColor: isSelected
+                            ? isDark
+                              ? 'rgba(57, 217, 138, 0.2)'
+                              : colors.primarySoft
+                            : isDark
+                            ? colors.surfaceElevated
+                            : '#F9FBF9',
+                          borderColor: isSelected ? colors.primary : colors.border,
+                        },
+                      ]}
+                      onPress={() => setSource(s)}
+                    >
+                      <Text
+                        style={[
+                          styles.sourcePillText,
+                          {
+                            color: isSelected ? colors.primary : colors.textSecondary,
+                            fontWeight: isSelected ? '700' : '500',
+                          },
+                        ]}
+                      >
+                        {s}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </ScrollView>
             </View>
 
-            {/* Description Input */}
-            <View style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>Catatan (Opsional)</Text>
-              <TextInput
-                style={styles.textInput}
-                value={description}
-                onChangeText={setDescription}
-                placeholder="Contoh: Belanja bulanan di supermarket"
-                placeholderTextColor={Colors.textMuted}
-              />
+            {/* Date & Time */}
+            <View style={styles.rowFields}>
+              <View style={[styles.fieldBlock, { flex: 1, marginRight: 8 }]}>
+                <Text style={[styles.inputLabel, { color: colors.textMuted }]}>
+                  Tanggal (YYYY-MM-DD)
+                </Text>
+                <View style={[styles.textInputWrap, { backgroundColor: isDark ? colors.surfaceElevated : '#F9FBF9', borderColor: colors.border }]}>
+                  <Calendar size={16} color={colors.textMuted} style={{ marginRight: 6 }} />
+                  <TextInput
+                    style={[styles.textInput, { color: colors.text }]}
+                    value={date}
+                    onChangeText={setDate}
+                    placeholder="YYYY-MM-DD"
+                    placeholderTextColor={colors.textMuted}
+                  />
+                </View>
+              </View>
+
+              <View style={[styles.fieldBlock, { width: 120 }]}>
+                <Text style={[styles.inputLabel, { color: colors.textMuted }]}>
+                  Waktu
+                </Text>
+                <View style={[styles.textInputWrap, { backgroundColor: isDark ? colors.surfaceElevated : '#F9FBF9', borderColor: colors.border }]}>
+                  <Clock size={16} color={colors.textMuted} style={{ marginRight: 6 }} />
+                  <TextInput
+                    style={[styles.textInput, { color: colors.text }]}
+                    value={time}
+                    onChangeText={setTime}
+                    placeholder="HH:mm"
+                    placeholderTextColor={colors.textMuted}
+                  />
+                </View>
+              </View>
             </View>
 
-            {/* Action Buttons */}
-            <View style={styles.footer}>
+            {/* Note / Description */}
+            <View style={styles.fieldBlock}>
+              <Text style={[styles.inputLabel, { color: colors.textMuted }]}>
+                Catatan Tambahan (Opsional)
+              </Text>
+              <View style={[styles.textInputWrap, { backgroundColor: isDark ? colors.surfaceElevated : '#F9FBF9', borderColor: colors.border }]}>
+                <TextInput
+                  style={[styles.textInput, { color: colors.text }]}
+                  placeholder="Keterangan transaksi..."
+                  placeholderTextColor={colors.textMuted}
+                  value={description}
+                  onChangeText={setDescription}
+                />
+              </View>
+            </View>
+
+            {/* Actions */}
+            <View style={styles.actionButtons}>
               <Button
                 title={initialTransaction ? 'Perbarui Transaksi' : 'Simpan Transaksi'}
                 onPress={handleSubmit}
                 loading={isSaving}
-                style={styles.saveBtn}
+                size="lg"
+                style={{ flex: 1 }}
               />
 
               {initialTransaction && onDelete && (
                 <TouchableOpacity
+                  style={[styles.deleteButton, { borderColor: colors.expense }]}
                   onPress={handleDelete}
-                  style={styles.deleteBtn}
                 >
-                  <Trash2 size={18} color={Colors.expense} />
-                  <Text style={styles.deleteText}>Hapus</Text>
+                  <Trash2 size={20} color={colors.expense} />
                 </TouchableOpacity>
               )}
             </View>
@@ -310,38 +504,55 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.75)',
     justifyContent: 'flex-end',
   },
-  sheet: {
-    backgroundColor: '#101915',
+  backdrop: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.55)',
+  },
+  sheetContainer: {
     borderTopLeftRadius: BorderRadius.xl,
     borderTopRightRadius: BorderRadius.xl,
-    borderWidth: 1,
-    borderColor: Colors.cardBorder,
-    padding: Spacing.lg,
-    maxHeight: '85%',
+    borderTopWidth: 1,
+    maxHeight: '90%',
+    paddingBottom: 24,
+  },
+  handleContainer: {
+    alignItems: 'center',
+    paddingVertical: 10,
+  },
+  handle: {
+    width: 44,
+    height: 4,
+    borderRadius: 2,
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: Spacing.md,
+    paddingHorizontal: 20,
+    paddingBottom: 12,
   },
-  title: {
-    fontSize: 20,
+  modalTitle: {
+    fontSize: 18,
     fontWeight: '700',
-    color: Colors.text,
   },
   closeBtn: {
-    padding: Spacing.xs,
+    padding: 6,
+  },
+  scrollContent: {
+    paddingHorizontal: 20,
+    paddingBottom: 20,
   },
   typeSwitcher: {
     flexDirection: 'row',
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
     borderRadius: BorderRadius.md,
     padding: 4,
-    marginBottom: Spacing.lg,
+    marginBottom: 16,
   },
   typeTab: {
     flex: 1,
@@ -351,121 +562,91 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     borderRadius: BorderRadius.sm,
     gap: 6,
-  },
-  typeTabExpenseActive: {
-    backgroundColor: Colors.expense,
-  },
-  typeTabIncomeActive: {
-    backgroundColor: Colors.primary,
-  },
-  typeTabText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: Colors.textSecondary,
-  },
-  typeTabTextActive: {
-    color: '#FFF',
-    fontWeight: '700',
-  },
-  typeTabIncomeTextActive: {
-    color: '#080D0B',
-    fontWeight: '700',
-  },
-  amountContainer: {
-    backgroundColor: Colors.card,
-    borderRadius: BorderRadius.md,
-    padding: Spacing.md,
     borderWidth: 1,
-    borderColor: Colors.cardBorder,
-    marginBottom: Spacing.lg,
+    borderColor: 'transparent',
   },
-  amountLabel: {
-    color: Colors.textSecondary,
-    fontSize: 12,
-    fontWeight: '500',
-    marginBottom: 4,
-  },
-  amountInputRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  currencyPrefix: {
-    fontSize: 26,
+  typeTabActive: {},
+  typeTabText: {
+    fontSize: 13,
     fontWeight: '700',
-    color: Colors.primary,
-    marginRight: 8,
+  },
+  amountInputBlock: {
+    alignItems: 'center',
+    marginVertical: 10,
   },
   amountInput: {
-    flex: 1,
-    fontSize: 26,
-    fontWeight: '700',
-    color: Colors.text,
+    fontSize: 34,
+    fontWeight: '800',
+    textAlign: 'center',
+    borderBottomWidth: 1.5,
+    minWidth: 200,
+    paddingVertical: 4,
     fontVariant: ['tabular-nums'],
   },
-  sectionLabel: {
-    fontSize: 14,
+  amountPreview: {
+    fontSize: 13,
+    marginTop: 6,
+    fontWeight: '500',
+  },
+  fieldBlock: {
+    marginBottom: 14,
+  },
+  inputLabel: {
+    fontSize: 12,
     fontWeight: '600',
-    color: Colors.textSecondary,
-    marginBottom: Spacing.sm,
+    marginBottom: 6,
   },
-  categoryGrid: {
+  textInputWrap: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-    marginBottom: Spacing.lg,
+    alignItems: 'center',
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    paddingHorizontal: 12,
+    height: 46,
   },
-  categoryCard: {
+  textInput: {
+    flex: 1,
+    fontSize: 14,
+  },
+  categoryPillsRow: {
+    gap: 8,
+    paddingVertical: 2,
+  },
+  catPill: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingVertical: 8,
     paddingHorizontal: 12,
-    borderRadius: BorderRadius.md,
+    borderRadius: BorderRadius.full,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.06)',
-    backgroundColor: 'rgba(255, 255, 255, 0.02)',
-    gap: 8,
-  },
-  categoryName: {
-    fontSize: 13,
-    color: Colors.textSecondary,
-  },
-  inputGroup: {
-    marginBottom: Spacing.md,
-  },
-  inputLabel: {
-    fontSize: 13,
-    color: Colors.textSecondary,
-    marginBottom: 6,
-    fontWeight: '500',
-  },
-  textInput: {
-    backgroundColor: Colors.card,
-    borderWidth: 1,
-    borderColor: Colors.cardBorder,
-    borderRadius: BorderRadius.md,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    color: Colors.text,
-    fontSize: 14,
-  },
-  footer: {
-    marginTop: Spacing.md,
-    marginBottom: Spacing.xl,
-    gap: 12,
-  },
-  saveBtn: {
-    width: '100%',
-  },
-  deleteBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 12,
     gap: 6,
   },
-  deleteText: {
-    color: Colors.expense,
-    fontSize: 14,
-    fontWeight: '600',
+  catPillText: {
+    fontSize: 12,
+  },
+  sourcePill: {
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+  },
+  sourcePillText: {
+    fontSize: 12,
+  },
+  rowFields: {
+    flexDirection: 'row',
+  },
+  actionButtons: {
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 16,
+  },
+  deleteButton: {
+    width: 52,
+    height: 52,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });

@@ -3,7 +3,8 @@
 # dependencies
 node_modules/
 
-# Expo
+# test coverage
+coverage/
 .expo/
 dist/
 web-build/

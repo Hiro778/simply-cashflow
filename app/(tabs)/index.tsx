@@ -9,30 +9,37 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAppStore } from '../../hooks/useAppStore';
-import { Colors, Spacing, BorderRadius } from '../../constants/theme';
-import { GlassCard } from '../../components/GlassCard';
-import { CircularProgress } from '../../components/CircularProgress';
+import { useTheme } from '../../hooks/useTheme';
+import { SurfaceCard } from '../../components/SurfaceCard';
+import { SafeToSpendCard } from '../../components/SafeToSpendCard';
+import { SmartBudgetCard } from '../../components/SmartBudgetCard';
+import { CaptureReviewCard } from '../../components/CaptureReviewCard';
 import { TransactionItem } from '../../components/TransactionItem';
 import { TransactionModal } from '../../components/TransactionModal';
 import { BudgetModal } from '../../components/BudgetModal';
+import { CircularProgress } from '../../components/CircularProgress';
 import { formatIDR } from '../../utils/currency';
-import { formatReadableMonth } from '../../utils/dates';
-import { assessFinancialHealth } from '../../utils/calculations';
+import { formatReadableMonth, formatReadableDate } from '../../utils/dates';
 import {
   TrendingUp,
   ArrowUpRight,
   ArrowDownLeft,
   Plus,
-  ShieldCheck,
-  Target,
-  AlertTriangle,
+  Settings,
+  Sparkles,
+  Calendar,
+  Repeat,
   ChevronRight,
-  Wallet,
+  Target,
+  CheckCircle2,
 } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
+import { Spacing, BorderRadius } from '../../constants/theme';
 
 export default function HomeScreen() {
   const router = useRouter();
+  const { colors, isDark } = useTheme();
+
   const {
     currentMonth,
     allTransactions,
@@ -41,11 +48,18 @@ export default function HomeScreen() {
     allTimeSummary,
     overallBudget,
     savingsGoals,
+    upcomingBills,
+    pendingCaptures,
+    safeToSpend,
+    smartBudgetPace,
     categories,
     refresh,
     addTransaction,
     setOverallBudget,
     setCategoryBudget,
+    approveCapture,
+    dismissCapture,
+    confirmRecurring,
   } = useAppStore();
 
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -58,15 +72,10 @@ export default function HomeScreen() {
     setIsRefreshing(false);
   };
 
-  const health = assessFinancialHealth(
-    monthSummary.totalIncome,
-    monthSummary.totalExpense
-  );
-
   const recentTransactions = monthTransactions.slice(0, 5);
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.background }]} edges={['top']}>
       <ScrollView
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
@@ -74,274 +83,311 @@ export default function HomeScreen() {
           <RefreshControl
             refreshing={isRefreshing}
             onRefresh={onRefresh}
-            tintColor={Colors.primary}
+            tintColor={colors.primary}
           />
         }
       >
         {/* Header Bar */}
         <View style={styles.header}>
           <View>
-            <Text style={styles.appTitle}>SIMPLY CASHFLOW</Text>
-            <Text style={styles.monthSubtitle}>
+            <Text style={[styles.appTitle, { color: colors.text }]}>SIMPLY CASHFLOW</Text>
+            <Text style={[styles.monthSubtitle, { color: colors.textSecondary }]}>
               {formatReadableMonth(currentMonth)}
             </Text>
           </View>
-          <TouchableOpacity
-            style={styles.addButton}
-            onPress={() => setIsAddTxModalVisible(true)}
-          >
-            <Plus size={20} color="#080D0B" strokeWidth={2.5} />
-            <Text style={styles.addButtonText}>Catat</Text>
-          </TouchableOpacity>
+
+          <View style={styles.headerActions}>
+            {pendingCaptures.length > 0 && (
+              <TouchableOpacity
+                style={[
+                  styles.captureNoticeBtn,
+                  { backgroundColor: isDark ? 'rgba(57, 217, 138, 0.2)' : colors.primarySoft },
+                ]}
+                onPress={() => router.push('/smart-capture')}
+              >
+                <Sparkles size={16} color={colors.primary} />
+                <Text style={[styles.captureNoticeText, { color: colors.primary }]}>
+                  {pendingCaptures.length}
+                </Text>
+              </TouchableOpacity>
+            )}
+
+            <TouchableOpacity
+              style={[
+                styles.iconButton,
+                { backgroundColor: colors.surface, borderColor: colors.border },
+              ]}
+              onPress={() => router.push('/settings')}
+            >
+              <Settings size={20} color={colors.text} />
+            </TouchableOpacity>
+          </View>
         </View>
+
+        {/* Safe to Spend Engine Card */}
+        <SafeToSpendCard
+          safeToSpend={safeToSpend}
+          onEditReserve={() => router.push('/settings')}
+        />
 
         {/* Hero Balance Card */}
-        <GlassCard style={styles.heroCard} highlight>
+        <SurfaceCard style={styles.heroCard}>
           <View style={styles.heroHeader}>
-            <View style={styles.balanceIconBg}>
-              <Wallet size={18} color={Colors.primary} />
-            </View>
-            <Text style={styles.heroLabel}>Total Saldo Tersedia</Text>
-          </View>
-
-          <Text style={styles.heroBalance}>
-            {formatIDR(allTimeSummary.netBalance)}
-          </Text>
-
-          <View style={styles.heroDivider} />
-
-          {/* Monthly In / Out Badges */}
-          <View style={styles.flowRow}>
-            <View style={styles.flowItem}>
-              <View style={styles.flowBadgeIncome}>
-                <ArrowUpRight size={14} color={Colors.income} />
-                <Text style={styles.flowTextIncome}>Pemasukan</Text>
-              </View>
-              <Text style={styles.flowAmountIncome}>
-                {formatIDR(monthSummary.totalIncome)}
-              </Text>
-            </View>
-
-            <View style={styles.flowItem}>
-              <View style={styles.flowBadgeExpense}>
-                <ArrowDownLeft size={14} color={Colors.expense} />
-                <Text style={styles.flowTextExpense}>Pengeluaran</Text>
-              </View>
-              <Text style={styles.flowAmountExpense}>
-                {formatIDR(monthSummary.totalExpense)}
-              </Text>
-            </View>
-          </View>
-        </GlassCard>
-
-        {/* Circular Savings Rate & Financial Health Row */}
-        <View style={styles.metricsRow}>
-          {/* Circular Savings Rate */}
-          <GlassCard style={styles.metricCardHalf}>
-            <Text style={styles.cardHeaderSmall}>Rasio Tabungan</Text>
-            <View style={styles.circularContainer}>
-              <CircularProgress
-                size={86}
-                strokeWidth={9}
-                progress={monthSummary.savingsRate}
-                color={Colors.primary}
-                label={`${monthSummary.savingsRate}%`}
-                sublabel="Disimpan"
-              />
-            </View>
-            <Text style={styles.savingsAmountText}>
-              Net: {formatIDR(monthSummary.netBalance)}
+            <Text style={[styles.heroLabel, { color: colors.textSecondary }]}>
+              Saldo Kas Tersedia
             </Text>
-          </GlassCard>
-
-          {/* Health Score Card */}
-          <GlassCard style={styles.metricCardHalf}>
-            <View style={styles.healthHeader}>
-              <ShieldCheck size={18} color={health.badgeColor} />
-              <Text style={[styles.healthBadge, { color: health.badgeColor }]}>
-                {health.title}
-              </Text>
-            </View>
-            <Text style={styles.healthDescription} numberOfLines={3}>
-              {health.description}
-            </Text>
-            <View style={styles.healthScoreRow}>
-              <Text style={styles.healthScoreLabel}>Skor Finansial:</Text>
-              <Text style={[styles.healthScoreVal, { color: health.badgeColor }]}>
-                {health.score}/100
-              </Text>
-            </View>
-          </GlassCard>
-        </View>
-
-        {/* Monthly Budget Overview */}
-        <GlassCard style={styles.budgetCard}>
-          <View style={styles.budgetHeader}>
-            <View style={styles.budgetTitleRow}>
-              <Target size={18} color={Colors.primary} />
-              <Text style={styles.cardTitle}>Anggaran Belanja</Text>
-            </View>
-            <TouchableOpacity onPress={() => setIsBudgetModalVisible(true)}>
-              <Text style={styles.linkText}>
-                {overallBudget ? 'Ubah Batas' : 'Atur Batas'}
+            <TouchableOpacity
+              onPress={() => setIsBudgetModalVisible(true)}
+              style={[styles.budgetChip, { borderColor: colors.border }]}
+            >
+              <Text style={[styles.budgetChipText, { color: colors.primary }]}>
+                {overallBudget ? 'Atur Anggaran' : '+ Pasang Anggaran'}
               </Text>
             </TouchableOpacity>
           </View>
 
-          {overallBudget ? (
-            <View style={styles.budgetContent}>
-              <View style={styles.budgetNumbers}>
-                <Text style={styles.budgetSpent}>
-                  Terpakai {formatIDR(overallBudget.status.spent)}
-                </Text>
-                <Text style={styles.budgetLimit}>
-                  dari {formatIDR(overallBudget.budget.amount)}
-                </Text>
-              </View>
+          <Text style={[styles.heroAmount, { color: colors.text }]}>
+            {formatIDR(allTimeSummary.netBalance, true)}
+          </Text>
 
-              {/* Progress Bar */}
-              <View style={styles.progressBarBackground}>
-                <View
-                  style={[
-                    styles.progressBarFill,
-                    {
-                      width: `${Math.min(100, overallBudget.status.percentage)}%`,
-                      backgroundColor:
-                        overallBudget.status.level === 'danger'
-                          ? Colors.expense
-                          : overallBudget.status.level === 'warning'
-                          ? Colors.warning
-                          : Colors.primary,
-                    },
-                  ]}
-                />
+          {/* Month Cashflow Row */}
+          <View style={[styles.cashflowRow, { borderTopColor: colors.border }]}>
+            <View style={styles.cashflowItem}>
+              <View style={[styles.flowIconWrap, { backgroundColor: colors.incomeBackground }]}>
+                <ArrowUpRight size={16} color={colors.income} />
               </View>
-
-              <View style={styles.budgetFooter}>
-                <Text
-                  style={[
-                    styles.budgetRemaining,
-                    overallBudget.status.isOverspent && styles.overspentText,
-                  ]}
-                >
-                  {overallBudget.status.isOverspent
-                    ? `Melebihi Batas: ${formatIDR(
-                        overallBudget.status.spent - overallBudget.budget.amount
-                      )}`
-                    : `Sisa Anggaran: ${formatIDR(overallBudget.status.remaining)}`}
-                </Text>
-                <Text style={styles.budgetPercent}>
-                  {overallBudget.status.percentage}%
+              <View>
+                <Text style={[styles.flowLabel, { color: colors.textMuted }]}>Pemasukan Bulan Ini</Text>
+                <Text style={[styles.flowValue, { color: colors.income }]}>
+                  {formatIDR(monthSummary.totalIncome, true)}
                 </Text>
               </View>
             </View>
-          ) : (
-            <View style={styles.emptyBudgetContainer}>
-              <Text style={styles.emptyBudgetText}>
-                Belum ada batas anggaran bulanan yang ditentukan.
-              </Text>
-              <TouchableOpacity
-                onPress={() => setIsBudgetModalVisible(true)}
-                style={styles.setBudgetBtn}
-              >
-                <Text style={styles.setBudgetBtnText}>Pasang Anggaran</Text>
-              </TouchableOpacity>
-            </View>
-          )}
-        </GlassCard>
 
-        {/* Savings Goals Highlights */}
-        {savingsGoals.length > 0 && (
-          <GlassCard style={styles.savingsCard}>
-            <View style={styles.budgetHeader}>
-              <View style={styles.budgetTitleRow}>
-                <TrendingUp size={18} color={Colors.primary} />
-                <Text style={styles.cardTitle}>Target Impian</Text>
+            <View style={styles.cashflowItem}>
+              <View style={[styles.flowIconWrap, { backgroundColor: colors.expenseBackground }]}>
+                <ArrowDownLeft size={16} color={colors.expense} />
               </View>
-              <TouchableOpacity onPress={() => router.push('/(tabs)/savings')}>
-                <View style={styles.seeAllRow}>
-                  <Text style={styles.linkText}>Lihat Semua</Text>
-                  <ChevronRight size={14} color={Colors.primary} />
-                </View>
+              <View>
+                <Text style={[styles.flowLabel, { color: colors.textMuted }]}>Pengeluaran Bulan Ini</Text>
+                <Text style={[styles.flowValue, { color: colors.expense }]}>
+                  {formatIDR(monthSummary.totalExpense, true)}
+                </Text>
+              </View>
+            </View>
+          </View>
+        </SurfaceCard>
+
+        {/* Pending Smart Capture Review Queue */}
+        {pendingCaptures.length > 0 && (
+          <View style={styles.sectionContainer}>
+            <View style={styles.sectionHeader}>
+              <View style={styles.sectionTitleRow}>
+                <Sparkles size={18} color={colors.primary} />
+                <Text style={[styles.sectionTitle, { color: colors.text }]}>
+                  Verifikasi Notifikasi Otomatis ({pendingCaptures.length})
+                </Text>
+              </View>
+              <TouchableOpacity onPress={() => router.push('/smart-capture')}>
+                <Text style={[styles.seeAllText, { color: colors.primary }]}>Semua</Text>
               </TouchableOpacity>
             </View>
 
-            {savingsGoals.slice(0, 2).map((item) => (
-              <View key={item.goal.id} style={styles.goalMiniItem}>
-                <View style={styles.goalMiniInfo}>
-                  <Text style={styles.goalMiniName}>{item.goal.name}</Text>
-                  <Text style={styles.goalMiniAmounts}>
-                    {formatIDR(item.goal.current_amount)} /{' '}
-                    {formatIDR(item.goal.target_amount)}
-                  </Text>
-                </View>
-                <CircularProgress
-                  size={46}
-                  strokeWidth={5}
-                  progress={item.metrics.percentage}
-                  color={item.goal.color || Colors.primary}
-                  label={`${item.metrics.percentage}%`}
-                />
-              </View>
+            {pendingCaptures.slice(0, 2).map((item) => (
+              <CaptureReviewCard
+                key={item.id}
+                capture={item}
+                onApprove={approveCapture}
+                onDismiss={dismissCapture}
+              />
             ))}
-          </GlassCard>
+          </View>
         )}
 
-        {/* Recent Transactions Section */}
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Transaksi Terbaru</Text>
-          <TouchableOpacity onPress={() => router.push('/(tabs)/transactions')}>
-            <View style={styles.seeAllRow}>
-              <Text style={styles.linkText}>Semua</Text>
-              <ChevronRight size={14} color={Colors.primary} />
-            </View>
+        {/* Quick Actions Row */}
+        <View style={styles.quickActionsGrid}>
+          <TouchableOpacity
+            style={[styles.quickActionCard, { backgroundColor: colors.primary }]}
+            activeOpacity={0.8}
+            onPress={() => setIsAddTxModalVisible(true)}
+          >
+            <Plus size={22} color={isDark ? '#080F0C' : '#FFFFFF'} strokeWidth={2.5} />
+            <Text style={[styles.quickActionTitlePrimary, { color: isDark ? '#080F0C' : '#FFFFFF' }]}>
+              Catat Transaksi
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.quickActionCard, { backgroundColor: colors.surface, borderColor: colors.border }]}
+            activeOpacity={0.8}
+            onPress={() => router.push('/recurring')}
+          >
+            <Repeat size={20} color={colors.primary} />
+            <Text style={[styles.quickActionTitle, { color: colors.text }]}>
+              Tagihan Rutin
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.quickActionCard, { backgroundColor: colors.surface, borderColor: colors.border }]}
+            activeOpacity={0.8}
+            onPress={() => router.push('/calendar')}
+          >
+            <Calendar size={20} color={colors.primary} />
+            <Text style={[styles.quickActionTitle, { color: colors.text }]}>
+              Kalender
+            </Text>
           </TouchableOpacity>
         </View>
 
-        {recentTransactions.length === 0 ? (
-          <GlassCard style={styles.emptyStateCard}>
-            <Text style={styles.emptyStateTitle}>Belum Ada Transaksi</Text>
-            <Text style={styles.emptyStateDesc}>
-              Mulai catat transaksi pertama Anda dengan menekan tombol Catat di atas.
-            </Text>
-          </GlassCard>
-        ) : (
-          recentTransactions.map((tx) => {
-            const cat = categories.find((c) => c.id === tx.category_id);
-            return (
-              <TransactionItem
-                key={tx.id}
-                transaction={tx}
-                categoryIcon={cat?.icon || 'Folder'}
-                categoryColor={cat?.color || Colors.primary}
-                onPress={() => router.push('/(tabs)/transactions')}
-              />
-            );
-          })
+        {/* Smart Budget & Spending Pace */}
+        <SmartBudgetCard pace={smartBudgetPace} />
+
+        {/* Upcoming Bills Section */}
+        {upcomingBills.length > 0 && (
+          <SurfaceCard style={styles.sectionContainer}>
+            <View style={styles.sectionHeader}>
+              <View style={styles.sectionTitleRow}>
+                <Repeat size={18} color={colors.primary} />
+                <Text style={[styles.sectionTitle, { color: colors.text }]}>
+                  Tagihan Mendatang
+                </Text>
+              </View>
+              <TouchableOpacity onPress={() => router.push('/recurring')}>
+                <Text style={[styles.seeAllText, { color: colors.primary }]}>Kelola</Text>
+              </TouchableOpacity>
+            </View>
+
+            {upcomingBills.slice(0, 3).map((bill) => (
+              <View
+                key={bill.id}
+                style={[styles.billRow, { borderBottomColor: colors.border }]}
+              >
+                <View style={styles.billLeft}>
+                  <Text style={[styles.billTitle, { color: colors.text }]}>
+                    {bill.title}
+                  </Text>
+                  <Text style={[styles.billDate, { color: colors.textMuted }]}>
+                    Jatuh tempo: {formatReadableDate(bill.next_due_date)}
+                  </Text>
+                </View>
+
+                <View style={styles.billRight}>
+                  <Text style={[styles.billAmount, { color: colors.expense }]}>
+                    {formatIDR(bill.amount, true)}
+                  </Text>
+                  <TouchableOpacity
+                    style={[styles.payBtn, { backgroundColor: colors.primarySoft }]}
+                    onPress={() => confirmRecurring(bill.id)}
+                  >
+                    <CheckCircle2 size={14} color={colors.primary} />
+                    <Text style={[styles.payBtnText, { color: colors.primary }]}>
+                      Bayar
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            ))}
+          </SurfaceCard>
         )}
+
+        {/* Savings Goals Preview */}
+        {savingsGoals.length > 0 && (
+          <SurfaceCard style={styles.sectionContainer}>
+            <View style={styles.sectionHeader}>
+              <View style={styles.sectionTitleRow}>
+                <Target size={18} color={colors.primary} />
+                <Text style={[styles.sectionTitle, { color: colors.text }]}>
+                  Target Impian
+                </Text>
+              </View>
+              <TouchableOpacity onPress={() => router.push('/(tabs)/goals')}>
+                <Text style={[styles.seeAllText, { color: colors.primary }]}>Semua</Text>
+              </TouchableOpacity>
+            </View>
+
+            {savingsGoals.slice(0, 2).map(({ goal, metrics }) => (
+              <View
+                key={goal.id}
+                style={[styles.goalRow, { borderBottomColor: colors.border }]}
+              >
+                <View style={styles.goalInfo}>
+                  <Text style={[styles.goalName, { color: colors.text }]}>
+                    {goal.name}
+                  </Text>
+                  <Text style={[styles.goalProgressText, { color: colors.textSecondary }]}>
+                    {formatIDR(goal.current_amount)} dari {formatIDR(goal.target_amount)}
+                  </Text>
+                </View>
+
+                <CircularProgress
+                  size={46}
+                  strokeWidth={4.5}
+                  progress={metrics.percentage}
+                  label={`${metrics.percentage}%`}
+                  color={goal.color || colors.primary}
+                />
+              </View>
+            ))}
+          </SurfaceCard>
+        )}
+
+        {/* Recent Transactions */}
+        <View style={styles.sectionContainer}>
+          <View style={styles.sectionHeader}>
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>
+              Transaksi Terkini
+            </Text>
+            <TouchableOpacity onPress={() => router.push('/(tabs)/activity')}>
+              <Text style={[styles.seeAllText, { color: colors.primary }]}>Lihat Semua</Text>
+            </TouchableOpacity>
+          </View>
+
+          {recentTransactions.length === 0 ? (
+            <SurfaceCard style={styles.emptyCard}>
+              <Text style={[styles.emptyTitle, { color: colors.text }]}>
+                Belum Ada Transaksi Bulan Ini
+              </Text>
+              <Text style={[styles.emptySubtitle, { color: colors.textSecondary }]}>
+                Tekan tombol 'Catat Transaksi' untuk memulai pencatatan keuangan Anda.
+              </Text>
+            </SurfaceCard>
+          ) : (
+            recentTransactions.map((tx) => {
+              const cat = categories.find((c) => c.id === tx.category_id);
+              return (
+                <TransactionItem
+                  key={tx.id}
+                  transaction={tx}
+                  categoryIcon={cat?.icon}
+                  categoryColor={cat?.color}
+                  onPress={() => router.push('/(tabs)/activity')}
+                />
+              );
+            })
+          )}
+        </View>
       </ScrollView>
 
-      {/* Add Transaction Modal */}
+      {/* Transaction Entry Bottom Sheet Modal */}
       <TransactionModal
         visible={isAddTxModalVisible}
         onClose={() => setIsAddTxModalVisible(false)}
         categories={categories}
-        onSave={async (tx) => {
-          await addTransaction(tx);
-        }}
+        onSave={addTransaction}
       />
 
-      {/* Budget Modal */}
+      {/* Budget Configuration Modal */}
       <BudgetModal
         visible={isBudgetModalVisible}
         onClose={() => setIsBudgetModalVisible(false)}
         categories={categories}
         initialAmount={overallBudget?.budget.amount || 0}
         onSave={async (catId, amount) => {
-          if (catId) {
-            await setCategoryBudget(catId, amount);
-          } else {
+          if (!catId) {
             await setOverallBudget(amount);
+          } else {
+            await setCategoryBudget(catId, amount);
           }
         }}
       />
@@ -352,324 +398,225 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: Colors.background,
   },
   scrollContent: {
-    paddingHorizontal: Spacing.md,
-    paddingBottom: Spacing.xxl,
+    paddingHorizontal: 16,
+    paddingBottom: 32,
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: Spacing.md,
+    paddingVertical: 14,
   },
   appTitle: {
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: '800',
-    color: Colors.text,
-    letterSpacing: 1.2,
+    letterSpacing: 0.5,
   },
   monthSubtitle: {
     fontSize: 13,
-    color: Colors.primary,
-    fontWeight: '600',
     marginTop: 2,
+    fontWeight: '500',
   },
-  addButton: {
+  headerActions: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Colors.primary,
-    paddingVertical: 8,
-    paddingHorizontal: 14,
-    borderRadius: BorderRadius.full,
-    gap: 4,
-    elevation: 3,
+    gap: 8,
   },
-  addButtonText: {
-    color: '#080D0B',
+  captureNoticeBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: BorderRadius.full,
+  },
+  captureNoticeText: {
+    fontSize: 12,
     fontWeight: '700',
-    fontSize: 13,
+  },
+  iconButton: {
+    width: 40,
+    height: 40,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   heroCard: {
-    marginBottom: Spacing.md,
-    padding: Spacing.lg,
+    marginVertical: Spacing.sm,
   },
   heroHeader: {
     flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 8,
-    gap: 8,
-  },
-  balanceIconBg: {
-    backgroundColor: 'rgba(53, 208, 127, 0.15)',
-    padding: 6,
-    borderRadius: BorderRadius.full,
+    marginBottom: 6,
   },
   heroLabel: {
     fontSize: 13,
-    color: Colors.textSecondary,
-    fontWeight: '600',
-  },
-  heroBalance: {
-    fontSize: 32,
-    fontWeight: '800',
-    color: Colors.text,
-    fontVariant: ['tabular-nums'],
-    letterSpacing: -0.5,
-  },
-  heroDivider: {
-    height: 1,
-    backgroundColor: 'rgba(255, 255, 255, 0.08)',
-    marginVertical: Spacing.md,
-  },
-  flowRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  flowItem: {
-    flex: 1,
-  },
-  flowBadgeIncome: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    marginBottom: 4,
-  },
-  flowTextIncome: {
-    fontSize: 11,
-    color: Colors.income,
-    fontWeight: '600',
-  },
-  flowAmountIncome: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: Colors.text,
-    fontVariant: ['tabular-nums'],
-  },
-  flowBadgeExpense: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    marginBottom: 4,
-  },
-  flowTextExpense: {
-    fontSize: 11,
-    color: Colors.expense,
-    fontWeight: '600',
-  },
-  flowAmountExpense: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: Colors.text,
-    fontVariant: ['tabular-nums'],
-  },
-  metricsRow: {
-    flexDirection: 'row',
-    gap: Spacing.md,
-    marginBottom: Spacing.md,
-  },
-  metricCardHalf: {
-    flex: 1,
-    padding: Spacing.md,
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  cardHeaderSmall: {
-    fontSize: 12,
-    color: Colors.textSecondary,
-    fontWeight: '600',
-    marginBottom: 8,
-    alignSelf: 'flex-start',
-  },
-  circularContainer: {
-    marginVertical: 4,
-  },
-  savingsAmountText: {
-    fontSize: 11,
-    color: Colors.primary,
-    fontWeight: '600',
-    marginTop: 6,
-  },
-  healthHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    alignSelf: 'flex-start',
-    marginBottom: 8,
-  },
-  healthBadge: {
-    fontSize: 13,
-    fontWeight: '700',
-  },
-  healthDescription: {
-    fontSize: 11,
-    color: Colors.textSecondary,
-    lineHeight: 16,
-  },
-  healthScoreRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    width: '100%',
-    marginTop: 8,
-    paddingTop: 6,
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(255, 255, 255, 0.06)',
-  },
-  healthScoreLabel: {
-    fontSize: 10,
-    color: Colors.textMuted,
-  },
-  healthScoreVal: {
-    fontSize: 11,
-    fontWeight: '700',
-  },
-  budgetCard: {
-    marginBottom: Spacing.md,
-  },
-  budgetHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: Spacing.sm,
-  },
-  budgetTitleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  cardTitle: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: Colors.text,
-  },
-  linkText: {
-    fontSize: 12,
-    color: Colors.primary,
-    fontWeight: '600',
-  },
-  budgetContent: {
-    marginTop: 4,
-  },
-  budgetNumbers: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 8,
-  },
-  budgetSpent: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: Colors.text,
-  },
-  budgetLimit: {
-    fontSize: 12,
-    color: Colors.textSecondary,
-  },
-  progressBarBackground: {
-    height: 8,
-    backgroundColor: 'rgba(255, 255, 255, 0.08)',
-    borderRadius: 4,
-    overflow: 'hidden',
-    marginBottom: 8,
-  },
-  progressBarFill: {
-    height: '100%',
-    borderRadius: 4,
-  },
-  budgetFooter: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  budgetRemaining: {
-    fontSize: 12,
-    color: Colors.textSecondary,
     fontWeight: '500',
   },
-  overspentText: {
-    color: Colors.expense,
-    fontWeight: '700',
+  budgetChip: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: BorderRadius.full,
+    borderWidth: 1,
   },
-  budgetPercent: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: Colors.text,
+  budgetChipText: {
+    fontSize: 11,
+    fontWeight: '600',
   },
-  emptyBudgetContainer: {
-    paddingVertical: Spacing.sm,
-    alignItems: 'center',
+  heroAmount: {
+    fontSize: 32,
+    fontWeight: '800',
+    fontVariant: ['tabular-nums'],
+    marginVertical: 4,
   },
-  emptyBudgetText: {
-    fontSize: 12,
-    color: Colors.textSecondary,
-    textAlign: 'center',
-    marginBottom: 8,
-  },
-  setBudgetBtn: {
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    borderRadius: BorderRadius.sm,
-    backgroundColor: 'rgba(53, 208, 127, 0.15)',
-  },
-  setBudgetBtnText: {
-    color: Colors.primary,
-    fontSize: 12,
-    fontWeight: '700',
-  },
-  savingsCard: {
-    marginBottom: Spacing.md,
-  },
-  seeAllRow: {
+  cashflowRow: {
     flexDirection: 'row',
-    alignItems: 'center',
-    gap: 2,
-  },
-  goalMiniItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
     justifyContent: 'space-between',
-    paddingVertical: 8,
+    marginTop: 14,
+    paddingTop: 12,
     borderTopWidth: 1,
-    borderTopColor: 'rgba(255, 255, 255, 0.05)',
   },
-  goalMiniInfo: {
+  cashflowItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
     flex: 1,
   },
-  goalMiniName: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: Colors.text,
-    marginBottom: 2,
+  flowIconWrap: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  goalMiniAmounts: {
+  flowLabel: {
+    fontSize: 11,
+  },
+  flowValue: {
+    fontSize: 14,
+    fontWeight: '700',
+    marginTop: 1,
+    fontVariant: ['tabular-nums'],
+  },
+  quickActionsGrid: {
+    flexDirection: 'row',
+    gap: 10,
+    marginVertical: Spacing.sm,
+  },
+  quickActionCard: {
+    flex: 1,
+    paddingVertical: 14,
+    paddingHorizontal: 10,
+    borderRadius: BorderRadius.lg,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+  },
+  quickActionTitlePrimary: {
     fontSize: 12,
-    color: Colors.textSecondary,
+    fontWeight: '700',
+  },
+  quickActionTitle: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  sectionContainer: {
+    marginVertical: Spacing.sm,
   },
   sectionHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginVertical: Spacing.md,
+    marginBottom: 10,
+  },
+  sectionTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
   },
   sectionTitle: {
     fontSize: 16,
     fontWeight: '700',
-    color: Colors.text,
   },
-  emptyStateCard: {
+  seeAllText: {
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  billRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
-    padding: Spacing.lg,
+    paddingVertical: 10,
+    borderBottomWidth: 0.5,
   },
-  emptyStateTitle: {
+  billLeft: {
+    flex: 1,
+  },
+  billTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  billDate: {
+    fontSize: 11,
+    marginTop: 2,
+  },
+  billRight: {
+    alignItems: 'flex-end',
+    gap: 4,
+  },
+  billAmount: {
+    fontSize: 14,
+    fontWeight: '700',
+    fontVariant: ['tabular-nums'],
+  },
+  payBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: BorderRadius.sm,
+  },
+  payBtnText: {
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  goalRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 8,
+    borderBottomWidth: 0.5,
+  },
+  goalInfo: {
+    flex: 1,
+  },
+  goalName: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  goalProgressText: {
+    fontSize: 12,
+    marginTop: 2,
+  },
+  emptyCard: {
+    paddingVertical: 24,
+    alignItems: 'center',
+    textAlign: 'center',
+  },
+  emptyTitle: {
     fontSize: 15,
     fontWeight: '700',
-    color: Colors.text,
-    marginBottom: 4,
   },
-  emptyStateDesc: {
+  emptySubtitle: {
     fontSize: 12,
-    color: Colors.textSecondary,
+    marginTop: 6,
     textAlign: 'center',
-    lineHeight: 18,
+    paddingHorizontal: 16,
   },
 });
