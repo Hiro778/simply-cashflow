@@ -9,7 +9,8 @@ import {
   TextStyle,
   View,
 } from 'react-native';
-import { Colors, BorderRadius, Spacing } from '../constants/theme';
+import { useTheme } from '../hooks/useTheme';
+import { BorderRadius, Spacing } from '../constants/theme';
 
 interface ButtonProps {
   title: string;
@@ -34,45 +35,63 @@ export const Button: React.FC<ButtonProps> = ({
   style,
   textStyle,
 }) => {
+  const { colors, isDark } = useTheme();
+
   const getContainerStyle = (): ViewStyle => {
     switch (variant) {
       case 'secondary':
-        return styles.secondaryContainer;
+        return {
+          backgroundColor: isDark ? colors.surfaceElevated : colors.primarySoft,
+          borderWidth: 1,
+          borderColor: colors.border,
+        };
       case 'danger':
-        return styles.dangerContainer;
+        return {
+          backgroundColor: colors.expenseBackground,
+          borderWidth: 1,
+          borderColor: colors.expense,
+        };
       case 'ghost':
-        return styles.ghostContainer;
+        return {
+          backgroundColor: 'transparent',
+          borderWidth: 0,
+        };
       case 'primary':
       default:
-        return styles.primaryContainer;
+        return {
+          backgroundColor: colors.primary,
+        };
     }
   };
 
-  const getTextStyle = (): TextStyle => {
+  const getTextColor = (): string => {
+    if (disabled) return colors.textMuted;
     switch (variant) {
       case 'secondary':
-        return styles.secondaryText;
+        return colors.text;
       case 'danger':
-        return styles.dangerText;
+        return colors.expense;
       case 'ghost':
-        return styles.ghostText;
+        return colors.primary;
       case 'primary':
       default:
-        return styles.primaryText;
+        return isDark ? '#080F0C' : '#FFFFFF';
     }
   };
 
   const getSizeStyle = (): ViewStyle => {
     switch (size) {
       case 'sm':
-        return styles.sizeSm;
+        return { paddingVertical: 8, paddingHorizontal: 12, minHeight: 36 };
       case 'lg':
-        return styles.sizeLg;
+        return { paddingVertical: 16, paddingHorizontal: 24, minHeight: 52 };
       case 'md':
       default:
-        return styles.sizeMd;
+        return { paddingVertical: 12, paddingHorizontal: 18, minHeight: 46 };
     }
   };
+
+  const textColor = getTextColor();
 
   return (
     <TouchableOpacity
@@ -88,14 +107,19 @@ export const Button: React.FC<ButtonProps> = ({
       ]}
     >
       {loading ? (
-        <ActivityIndicator
-          size="small"
-          color={variant === 'primary' ? '#080D0B' : Colors.primary}
-        />
+        <ActivityIndicator size="small" color={textColor} />
       ) : (
         <View style={styles.content}>
           {icon && <View style={styles.iconContainer}>{icon}</View>}
-          <Text style={[styles.baseText, getTextStyle(), textStyle]}>
+          <Text
+            style={[
+              styles.baseText,
+              { color: textColor },
+              size === 'sm' && styles.textSm,
+              size === 'lg' && styles.textLg,
+              textStyle,
+            ]}
+          >
             {title}
           </Text>
         </View>
@@ -109,7 +133,6 @@ const styles = StyleSheet.create({
     borderRadius: BorderRadius.md,
     alignItems: 'center',
     justifyContent: 'center',
-    flexDirection: 'row',
   },
   content: {
     flexDirection: 'row',
@@ -119,55 +142,16 @@ const styles = StyleSheet.create({
   iconContainer: {
     marginRight: Spacing.sm,
   },
-  primaryContainer: {
-    backgroundColor: Colors.primary,
-    shadowColor: Colors.primary,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  secondaryContainer: {
-    backgroundColor: 'rgba(255, 255, 255, 0.08)',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.12)',
-  },
-  dangerContainer: {
-    backgroundColor: 'rgba(255, 114, 114, 0.15)',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 114, 114, 0.3)',
-  },
-  ghostContainer: {
-    backgroundColor: 'transparent',
-  },
-  sizeSm: {
-    paddingVertical: 8,
-    paddingHorizontal: 14,
-  },
-  sizeMd: {
-    paddingVertical: 14,
-    paddingHorizontal: 20,
-  },
-  sizeLg: {
-    paddingVertical: 18,
-    paddingHorizontal: 28,
-  },
   baseText: {
-    fontWeight: '600',
     fontSize: 15,
+    fontWeight: '600',
+    textAlign: 'center',
   },
-  primaryText: {
-    color: '#080D0B',
-    fontWeight: '700',
+  textSm: {
+    fontSize: 13,
   },
-  secondaryText: {
-    color: Colors.text,
-  },
-  dangerText: {
-    color: Colors.expense,
-  },
-  ghostText: {
-    color: Colors.textSecondary,
+  textLg: {
+    fontSize: 16,
   },
   disabled: {
     opacity: 0.5,

@@ -1,23 +1,30 @@
 import React from 'react';
 import { Tabs } from 'expo-router';
-import { Colors } from '../../constants/theme';
+import { useTheme } from '../../hooks/useTheme';
 import {
   LayoutDashboard,
   ArrowLeftRight,
   PieChart,
   Target,
-  Settings as SettingsIcon,
 } from 'lucide-react-native';
 import { Platform, StyleSheet } from 'react-native';
 
 export default function TabLayout() {
+  const { colors, isDark } = useTheme();
+
   return (
     <Tabs
       screenOptions={{
         headerShown: false,
-        tabBarActiveTintColor: Colors.primary,
-        tabBarInactiveTintColor: Colors.textSecondary,
-        tabBarStyle: styles.tabBar,
+        tabBarActiveTintColor: colors.primary,
+        tabBarInactiveTintColor: colors.textSecondary,
+        tabBarStyle: [
+          styles.tabBar,
+          {
+            backgroundColor: colors.tabBarBackground,
+            borderTopColor: colors.tabBarBorder,
+          },
+        ],
         tabBarLabelStyle: styles.tabBarLabel,
       }}
     >
@@ -31,39 +38,56 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
-        name="transactions"
+        name="activity"
         options={{
-          title: 'Transaksi',
+          title: 'Aktivitas',
           tabBarIcon: ({ color, size }) => (
             <ArrowLeftRight size={size || 22} color={color} />
           ),
         }}
       />
       <Tabs.Screen
-        name="analytics"
+        name="insights"
         options={{
-          title: 'Analisis',
+          title: 'Wawasan',
           tabBarIcon: ({ color, size }) => (
             <PieChart size={size || 22} color={color} />
           ),
         }}
       />
       <Tabs.Screen
-        name="savings"
+        name="goals"
         options={{
-          title: 'Tabungan',
+          title: 'Target',
           tabBarIcon: ({ color, size }) => (
             <Target size={size || 22} color={color} />
           ),
         }}
       />
+
+      {/* Legacy tab aliases hidden from tab bar */}
+      <Tabs.Screen
+        name="transactions"
+        options={{
+          href: null,
+        }}
+      />
+      <Tabs.Screen
+        name="analytics"
+        options={{
+          href: null,
+        }}
+      />
+      <Tabs.Screen
+        name="savings"
+        options={{
+          href: null,
+        }}
+      />
       <Tabs.Screen
         name="settings"
         options={{
-          title: 'Pengaturan',
-          tabBarIcon: ({ color, size }) => (
-            <SettingsIcon size={size || 22} color={color} />
-          ),
+          href: null,
         }}
       />
     </Tabs>
@@ -72,11 +96,9 @@ export default function TabLayout() {
 
 const styles = StyleSheet.create({
   tabBar: {
-    backgroundColor: '#0C1410',
-    borderTopColor: 'rgba(255, 255, 255, 0.08)',
     borderTopWidth: 1,
-    height: Platform.OS === 'ios' ? 88 : 64,
-    paddingBottom: Platform.OS === 'ios' ? 24 : 8,
+    height: Platform.OS === 'ios' ? 88 : 66,
+    paddingBottom: Platform.OS === 'ios' ? 24 : 10,
     paddingTop: 8,
     elevation: 8,
   },

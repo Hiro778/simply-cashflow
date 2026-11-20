@@ -8,6 +8,26 @@ export interface Category {
   created_at: string;
 }
 
+export type TransactionSource =
+  | 'manual'
+  | 'DANA'
+  | 'GoPay'
+  | 'OVO'
+  | 'ShopeePay'
+  | 'BCA'
+  | 'BRI'
+  | 'Mandiri'
+  | 'QRIS'
+  | 'other';
+
+export type PaymentMethod =
+  | 'cash'
+  | 'transfer'
+  | 'e-wallet'
+  | 'qris'
+  | 'debit'
+  | 'credit';
+
 export interface Transaction {
   id: string;
   amount: number; // Integer in Indonesian Rupiah (IDR)
@@ -16,6 +36,11 @@ export interface Transaction {
   category_name: string;
   description: string;
   date: string; // YYYY-MM-DD
+  time?: string; // HH:mm
+  merchant?: string;
+  source?: TransactionSource;
+  payment_method?: PaymentMethod;
+  reference_id?: string;
   created_at: string;
   updated_at: string;
 }
@@ -28,6 +53,8 @@ export interface Budget {
   created_at: string;
 }
 
+export type SavingsGoalStatus = 'active' | 'completed' | 'paused' | 'archived';
+
 export interface SavingsGoal {
   id: string;
   name: string;
@@ -37,7 +64,7 @@ export interface SavingsGoal {
   description?: string;
   icon?: string;
   color?: string;
-  status: 'active' | 'completed';
+  status: SavingsGoalStatus;
   created_at: string;
   updated_at: string;
 }
@@ -51,28 +78,69 @@ export interface SavingsContribution {
   created_at: string;
 }
 
+export type RecurringFrequency = 'daily' | 'weekly' | 'monthly' | 'yearly';
+export type RecurringStatus = 'scheduled' | 'due' | 'confirmed' | 'skipped';
+
+export interface RecurringTransaction {
+  id: string;
+  title: string;
+  amount: number;
+  type: 'income' | 'expense';
+  category_id: string;
+  category_name: string;
+  frequency: RecurringFrequency;
+  start_date: string;
+  next_due_date: string;
+  is_active: number;
+  auto_record: number;
+  status: RecurringStatus;
+  created_at: string;
+  updated_at: string;
+}
+
+export type CaptureStatus = 'auto_saved' | 'pending_review' | 'ignored' | 'dismissed';
+
+export interface CapturedNotification {
+  id: string;
+  package_name: string;
+  app_name: string;
+  title: string;
+  body: string;
+  notification_timestamp: number;
+  parsed_amount: number | null;
+  parsed_type: 'income' | 'expense' | null;
+  parsed_merchant: string | null;
+  parsed_category_id: string | null;
+  parsed_category_name: string | null;
+  confidence: number;
+  fingerprint: string;
+  status: CaptureStatus;
+  transaction_id?: string | null;
+  created_at: string;
+}
+
 export interface AppSetting {
   key: string;
   value: string;
 }
 
 export const DEFAULT_INCOME_CATEGORIES: Omit<Category, 'created_at'>[] = [
-  { id: 'cat-inc-1', name: 'Salary', type: 'income', icon: 'Briefcase', color: '#35D07F', is_default: 1 },
-  { id: 'cat-inc-2', name: 'Freelance', type: 'income', icon: 'Laptop', color: '#80E6AC', is_default: 1 },
-  { id: 'cat-inc-3', name: 'Business', type: 'income', icon: 'Store', color: '#4ADE80', is_default: 1 },
-  { id: 'cat-inc-4', name: 'Investment', type: 'income', icon: 'TrendingUp', color: '#22C55E', is_default: 1 },
-  { id: 'cat-inc-5', name: 'Other income', type: 'income', icon: 'PlusCircle', color: '#10B981', is_default: 1 },
+  { id: 'cat-inc-1', name: 'Gaji', type: 'income', icon: 'Briefcase', color: '#168653', is_default: 1 },
+  { id: 'cat-inc-2', name: 'Freelance', type: 'income', icon: 'Laptop', color: '#39D98A', is_default: 1 },
+  { id: 'cat-inc-3', name: 'Bisnis', type: 'income', icon: 'Store', color: '#22C55E', is_default: 1 },
+  { id: 'cat-inc-4', name: 'Investasi', type: 'income', icon: 'TrendingUp', color: '#10B981', is_default: 1 },
+  { id: 'cat-inc-5', name: 'Pemasukan Lain', type: 'income', icon: 'PlusCircle', color: '#059669', is_default: 1 },
 ];
 
 export const DEFAULT_EXPENSE_CATEGORIES: Omit<Category, 'created_at'>[] = [
-  { id: 'cat-exp-1', name: 'Food', type: 'expense', icon: 'Utensils', color: '#FF7272', is_default: 1 },
-  { id: 'cat-exp-2', name: 'Transportation', type: 'expense', icon: 'Car', color: '#FB923C', is_default: 1 },
-  { id: 'cat-exp-3', name: 'Shopping', type: 'expense', icon: 'ShoppingBag', color: '#F472B6', is_default: 1 },
-  { id: 'cat-exp-4', name: 'Education', type: 'expense', icon: 'GraduationCap', color: '#A78BFA', is_default: 1 },
-  { id: 'cat-exp-5', name: 'Entertainment', type: 'expense', icon: 'Film', color: '#38BDF8', is_default: 1 },
-  { id: 'cat-exp-6', name: 'Bills', type: 'expense', icon: 'Receipt', color: '#FBBF24', is_default: 1 },
-  { id: 'cat-exp-7', name: 'Health', type: 'expense', icon: 'HeartPulse', color: '#EC4899', is_default: 1 },
-  { id: 'cat-exp-8', name: 'Other expenses', type: 'expense', icon: 'HelpCircle', color: '#94A3B8', is_default: 1 },
+  { id: 'cat-exp-1', name: 'Makanan & Minuman', type: 'expense', icon: 'Utensils', color: '#D96D70', is_default: 1 },
+  { id: 'cat-exp-2', name: 'Transportasi', type: 'expense', icon: 'Car', color: '#FB923C', is_default: 1 },
+  { id: 'cat-exp-3', name: 'Belanja', type: 'expense', icon: 'ShoppingBag', color: '#F472B6', is_default: 1 },
+  { id: 'cat-exp-4', name: 'Pendidikan', type: 'expense', icon: 'GraduationCap', color: '#A78BFA', is_default: 1 },
+  { id: 'cat-exp-5', name: 'Hiburan', type: 'expense', icon: 'Film', color: '#38BDF8', is_default: 1 },
+  { id: 'cat-exp-6', name: 'Tagihan & Utilitas', type: 'expense', icon: 'Receipt', color: '#D9A441', is_default: 1 },
+  { id: 'cat-exp-7', name: 'Kesehatan', type: 'expense', icon: 'HeartPulse', color: '#EC4899', is_default: 1 },
+  { id: 'cat-exp-8', name: 'Pengeluaran Lain', type: 'expense', icon: 'HelpCircle', color: '#94A3B8', is_default: 1 },
 ];
 
 export const CREATE_TABLES_SQL = `
@@ -94,6 +162,11 @@ CREATE TABLE IF NOT EXISTS transactions (
   category_name TEXT NOT NULL,
   description TEXT,
   date TEXT NOT NULL,
+  time TEXT,
+  merchant TEXT,
+  source TEXT DEFAULT 'manual',
+  payment_method TEXT DEFAULT 'cash',
+  reference_id TEXT,
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL,
   FOREIGN KEY (category_id) REFERENCES categories (id)
@@ -102,6 +175,7 @@ CREATE TABLE IF NOT EXISTS transactions (
 CREATE INDEX IF NOT EXISTS idx_transactions_date ON transactions(date);
 CREATE INDEX IF NOT EXISTS idx_transactions_type ON transactions(type);
 CREATE INDEX IF NOT EXISTS idx_transactions_category ON transactions(category_id);
+CREATE INDEX IF NOT EXISTS idx_transactions_source ON transactions(source);
 
 CREATE TABLE IF NOT EXISTS budgets (
   id TEXT PRIMARY KEY,
@@ -121,8 +195,8 @@ CREATE TABLE IF NOT EXISTS savings_goals (
   target_date TEXT NOT NULL,
   description TEXT,
   icon TEXT DEFAULT 'target',
-  color TEXT DEFAULT '#35D07F',
-  status TEXT DEFAULT 'active' CHECK(status IN ('active', 'completed')),
+  color TEXT DEFAULT '#39D98A',
+  status TEXT DEFAULT 'active' CHECK(status IN ('active', 'completed', 'paused', 'archived')),
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
 );
@@ -138,6 +212,48 @@ CREATE TABLE IF NOT EXISTS savings_contributions (
 );
 
 CREATE INDEX IF NOT EXISTS idx_contributions_goal ON savings_contributions(goal_id);
+
+CREATE TABLE IF NOT EXISTS recurring_transactions (
+  id TEXT PRIMARY KEY,
+  title TEXT NOT NULL,
+  amount INTEGER NOT NULL CHECK(amount > 0),
+  type TEXT NOT NULL CHECK(type IN ('income', 'expense')),
+  category_id TEXT NOT NULL,
+  category_name TEXT NOT NULL,
+  frequency TEXT NOT NULL CHECK(frequency IN ('daily', 'weekly', 'monthly', 'yearly')),
+  start_date TEXT NOT NULL,
+  next_due_date TEXT NOT NULL,
+  is_active INTEGER DEFAULT 1,
+  auto_record INTEGER DEFAULT 0,
+  status TEXT DEFAULT 'scheduled' CHECK(status IN ('scheduled', 'due', 'confirmed', 'skipped')),
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  FOREIGN KEY (category_id) REFERENCES categories (id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_recurring_due ON recurring_transactions(next_due_date);
+
+CREATE TABLE IF NOT EXISTS captured_notifications (
+  id TEXT PRIMARY KEY,
+  package_name TEXT NOT NULL,
+  app_name TEXT NOT NULL,
+  title TEXT,
+  body TEXT,
+  notification_timestamp INTEGER NOT NULL,
+  parsed_amount INTEGER,
+  parsed_type TEXT CHECK(parsed_type IN ('income', 'expense')),
+  parsed_merchant TEXT,
+  parsed_category_id TEXT,
+  parsed_category_name TEXT,
+  confidence REAL NOT NULL,
+  fingerprint TEXT UNIQUE NOT NULL,
+  status TEXT NOT NULL CHECK(status IN ('auto_saved', 'pending_review', 'ignored', 'dismissed')),
+  transaction_id TEXT,
+  created_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_captured_fingerprint ON captured_notifications(fingerprint);
+CREATE INDEX IF NOT EXISTS idx_captured_status ON captured_notifications(status);
 
 CREATE TABLE IF NOT EXISTS app_settings (
   key TEXT PRIMARY KEY,

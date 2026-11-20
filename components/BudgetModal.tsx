@@ -10,7 +10,8 @@ import {
   Platform,
   Alert,
 } from 'react-native';
-import { Colors, Spacing, BorderRadius } from '../constants/theme';
+import { useTheme } from '../hooks/useTheme';
+import { Spacing, BorderRadius } from '../constants/theme';
 import { Category } from '../database/schema';
 import { Button } from './Button';
 import { formatIDR, parseIDR } from '../utils/currency';
@@ -33,6 +34,7 @@ export const BudgetModal: React.FC<BudgetModalProps> = ({
   initialCategoryId = null,
   onSave,
 }) => {
+  const { colors, isDark } = useTheme();
   const [amountRaw, setAmountRaw] = useState(initialAmount > 0 ? initialAmount.toString() : '');
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(initialCategoryId);
   const [isSaving, setIsSaving] = useState(false);
@@ -78,82 +80,138 @@ export const BudgetModal: React.FC<BudgetModalProps> = ({
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         style={styles.overlay}
       >
-        <View style={styles.sheet}>
+        <TouchableOpacity style={styles.backdrop} activeOpacity={1} onPress={onClose} />
+        <View style={[styles.sheet, { backgroundColor: colors.surface, borderTopColor: colors.border }]}>
+          <View style={styles.handleContainer}>
+            <View
+              style={[
+                styles.handle,
+                { backgroundColor: isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.15)' },
+              ]}
+            />
+          </View>
+
           <View style={styles.header}>
-            <Text style={styles.title}>Atur Batas Anggaran</Text>
+            <Text style={[styles.title, { color: colors.text }]}>Atur Batas Anggaran</Text>
             <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
-              <X size={22} color={Colors.textSecondary} />
+              <X size={22} color={colors.textSecondary} />
             </TouchableOpacity>
           </View>
 
           {/* Scope Selector: Overall vs Category */}
-          <Text style={styles.sectionLabel}>Cakupan Anggaran</Text>
+          <Text style={[styles.sectionLabel, { color: colors.textMuted }]}>Cakupan Anggaran</Text>
           <View style={styles.scopeRow}>
             <TouchableOpacity
               onPress={() => setSelectedCategoryId(null)}
               style={[
                 styles.scopeTab,
-                selectedCategoryId === null && styles.scopeTabActive,
+                {
+                  backgroundColor: selectedCategoryId === null
+                    ? isDark ? 'rgba(57, 217, 138, 0.18)' : colors.primarySoft
+                    : isDark ? colors.surfaceElevated : '#F9FBF9',
+                  borderColor: selectedCategoryId === null ? colors.primary : colors.border,
+                },
               ]}
             >
               <Text
                 style={[
                   styles.scopeTabText,
-                  selectedCategoryId === null && styles.scopeTabTextActive,
+                  { color: selectedCategoryId === null ? colors.primary : colors.textSecondary },
+                  selectedCategoryId === null && { fontWeight: '700' },
                 ]}
               >
                 Total Bulanan
               </Text>
             </TouchableOpacity>
 
-            {expenseCategories.slice(0, 3).map((cat) => (
-              <TouchableOpacity
-                key={cat.id}
-                onPress={() => setSelectedCategoryId(cat.id)}
+            <TouchableOpacity
+              onPress={() => {
+                if (expenseCategories.length > 0 && selectedCategoryId === null) {
+                  setSelectedCategoryId(expenseCategories[0].id);
+                }
+              }}
+              style={[
+                styles.scopeTab,
+                {
+                  backgroundColor: selectedCategoryId !== null
+                    ? isDark ? 'rgba(57, 217, 138, 0.18)' : colors.primarySoft
+                    : isDark ? colors.surfaceElevated : '#F9FBF9',
+                  borderColor: selectedCategoryId !== null ? colors.primary : colors.border,
+                },
+              ]}
+            >
+              <Text
                 style={[
-                  styles.scopeTab,
-                  selectedCategoryId === cat.id && styles.scopeTabActive,
+                  styles.scopeTabText,
+                  { color: selectedCategoryId !== null ? colors.primary : colors.textSecondary },
+                  selectedCategoryId !== null && { fontWeight: '700' },
                 ]}
               >
-                <Text
-                  style={[
-                    styles.scopeTabText,
-                    selectedCategoryId === cat.id && styles.scopeTabTextActive,
-                  ]}
-                  numberOfLines={1}
-                >
-                  {cat.name}
-                </Text>
-              </TouchableOpacity>
-            ))}
+                Per Kategori
+              </Text>
+            </TouchableOpacity>
           </View>
+
+          {/* Category Chips if Per Kategori selected */}
+          {selectedCategoryId !== null && (
+            <View style={styles.categoriesWrapper}>
+              {expenseCategories.map((cat) => {
+                const isSelected = selectedCategoryId === cat.id;
+                return (
+                  <TouchableOpacity
+                    key={cat.id}
+                    onPress={() => setSelectedCategoryId(cat.id)}
+                    style={[
+                      styles.catChip,
+                      {
+                        backgroundColor: isSelected
+                          ? isDark ? 'rgba(57, 217, 138, 0.2)' : colors.primarySoft
+                          : isDark ? colors.surfaceElevated : '#F9FBF9',
+                        borderColor: isSelected ? colors.primary : colors.border,
+                      },
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.catChipText,
+                        { color: isSelected ? colors.primary : colors.text },
+                        isSelected && { fontWeight: '700' },
+                      ]}
+                    >
+                      {cat.name}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          )}
 
           {/* Amount Input */}
           <View style={styles.amountContainer}>
-            <Text style={styles.amountLabel}>Batas Maksimal Pengeluaran (IDR)</Text>
+            <Text style={[styles.amountLabel, { color: colors.textMuted }]}>
+              Batas Pengeluaran Maksimal (IDR)
+            </Text>
             <View style={styles.amountInputRow}>
-              <Text style={styles.currencyPrefix}>Rp</Text>
+              <Text style={[styles.currencyPrefix, { color: colors.primary }]}>Rp</Text>
               <TextInput
-                style={styles.amountInput}
+                style={[styles.amountInput, { color: colors.text, borderBottomColor: colors.border }]}
                 value={amountRaw ? formatIDR(parseIDR(amountRaw), false) : ''}
                 onChangeText={handleAmountChange}
                 placeholder="0"
-                placeholderTextColor={Colors.textMuted}
+                placeholderTextColor={colors.textMuted}
                 keyboardType="numeric"
                 autoFocus
               />
             </View>
           </View>
 
-          <View style={styles.footer}>
-            <Button
-              title="Simpan Anggaran"
-              onPress={handleSubmit}
-              loading={isSaving}
-              icon={<Target size={18} color="#080D0B" />}
-              style={styles.saveBtn}
-            />
-          </View>
+          <Button
+            title="Simpan Batas Anggaran"
+            onPress={handleSubmit}
+            loading={isSaving}
+            size="lg"
+            style={styles.saveBtn}
+          />
         </View>
       </KeyboardAvoidingView>
     </Modal>
@@ -163,98 +221,109 @@ export const BudgetModal: React.FC<BudgetModalProps> = ({
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.75)',
     justifyContent: 'flex-end',
   },
+  backdrop: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.55)',
+  },
   sheet: {
-    backgroundColor: '#101915',
     borderTopLeftRadius: BorderRadius.xl,
     borderTopRightRadius: BorderRadius.xl,
-    borderWidth: 1,
-    borderColor: Colors.cardBorder,
-    padding: Spacing.lg,
+    borderTopWidth: 1,
+    paddingHorizontal: 20,
+    paddingBottom: 28,
+  },
+  handleContainer: {
+    alignItems: 'center',
+    paddingVertical: 10,
+  },
+  handle: {
+    width: 44,
+    height: 4,
+    borderRadius: 2,
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: Spacing.lg,
+    marginBottom: 16,
   },
   title: {
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: '700',
-    color: Colors.text,
   },
   closeBtn: {
-    padding: Spacing.xs,
+    padding: 4,
   },
   sectionLabel: {
-    fontSize: 13,
-    color: Colors.textSecondary,
+    fontSize: 12,
+    fontWeight: '600',
     marginBottom: 8,
-    fontWeight: '500',
   },
   scopeRow: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-    marginBottom: Spacing.lg,
+    gap: 12,
+    marginBottom: 16,
   },
   scopeTab: {
-    paddingVertical: 8,
-    paddingHorizontal: 14,
+    flex: 1,
+    paddingVertical: 10,
     borderRadius: BorderRadius.md,
-    backgroundColor: 'rgba(255, 255, 255, 0.04)',
+    alignItems: 'center',
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.08)',
-  },
-  scopeTabActive: {
-    backgroundColor: 'rgba(53, 208, 127, 0.15)',
-    borderColor: Colors.primary,
   },
   scopeTabText: {
     fontSize: 13,
-    color: Colors.textSecondary,
   },
-  scopeTabTextActive: {
-    color: Colors.primary,
-    fontWeight: '700',
+  categoriesWrapper: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 16,
+  },
+  catChip: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: BorderRadius.full,
+    borderWidth: 1,
+  },
+  catChipText: {
+    fontSize: 12,
   },
   amountContainer: {
-    backgroundColor: Colors.card,
-    borderRadius: BorderRadius.md,
-    padding: Spacing.md,
-    borderWidth: 1,
-    borderColor: Colors.cardBorder,
-    marginBottom: Spacing.xl,
+    marginVertical: 12,
+    alignItems: 'center',
   },
   amountLabel: {
-    color: Colors.textSecondary,
     fontSize: 12,
-    fontWeight: '500',
-    marginBottom: 4,
+    fontWeight: '600',
+    marginBottom: 8,
   },
   amountInputRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
   },
   currencyPrefix: {
-    fontSize: 24,
+    fontSize: 22,
     fontWeight: '700',
-    color: Colors.primary,
-    marginRight: 8,
+    marginRight: 6,
   },
   amountInput: {
-    flex: 1,
-    fontSize: 24,
-    fontWeight: '700',
-    color: Colors.text,
+    fontSize: 28,
+    fontWeight: '800',
+    minWidth: 180,
+    textAlign: 'center',
+    borderBottomWidth: 1.5,
+    paddingVertical: 4,
     fontVariant: ['tabular-nums'],
   },
-  footer: {
-    marginBottom: Spacing.xl,
-  },
   saveBtn: {
-    width: '100%',
+    marginTop: 18,
   },
 });

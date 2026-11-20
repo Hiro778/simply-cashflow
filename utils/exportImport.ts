@@ -1,4 +1,12 @@
-import { Transaction, Category, Budget, SavingsGoal, SavingsContribution } from '../database/schema';
+import {
+  Transaction,
+  Category,
+  Budget,
+  SavingsGoal,
+  SavingsContribution,
+  RecurringTransaction,
+  CapturedNotification,
+} from '../database/schema';
 
 export interface BackupData {
   version: string;
@@ -9,17 +17,24 @@ export interface BackupData {
     budgets?: Budget[];
     savings_goals?: SavingsGoal[];
     savings_contributions?: SavingsContribution[];
+    recurring_transactions?: RecurringTransaction[];
+    captured_notifications?: CapturedNotification[];
+    settings?: { key: string; value: string }[];
   };
 }
 
 export function generateCSV(transactions: Transaction[]): string {
-  const header = ['ID', 'Date', 'Type', 'Category', 'Amount', 'Description'];
+  const header = ['ID', 'Date', 'Time', 'Type', 'Category', 'Amount', 'Merchant', 'Source', 'PaymentMethod', 'Description'];
   const rows = transactions.map((t) => [
     `"${t.id}"`,
     `"${t.date}"`,
+    `"${t.time || ''}"`,
     `"${t.type}"`,
-    `"${t.category_name.replace(/"/g, '""')}"`,
+    `"${(t.category_name || '').replace(/"/g, '""')}"`,
     t.amount.toString(),
+    `"${(t.merchant || '').replace(/"/g, '""')}"`,
+    `"${(t.source || 'manual').replace(/"/g, '""')}"`,
+    `"${(t.payment_method || 'cash').replace(/"/g, '""')}"`,
     `"${(t.description || '').replace(/"/g, '""')}"`,
   ]);
 
@@ -36,11 +51,10 @@ export function parseCSV(csvContent: string): Partial<Transaction>[] {
     const line = lines[i].trim();
     if (!line) continue;
 
-    // Handle quoted columns with comma
     const regex = /(?:,|\n|^)("(?:(?:"")*[^"]*)*"|[^",\n]*|(?:\n|$))/g;
     const matches: string[] = [];
     let match;
-    while ((match = regex.exec(line)) !== null && matches.length < 6) {
+    while ((match = regex.exec(line)) !== null && matches.length < 10) {
       let val = match[1] || '';
       if (val.startsWith('"') && val.endsWith('"')) {
         val = val.slice(1, -1).replace(/""/g, '"');
@@ -50,21 +64,48 @@ export function parseCSV(csvContent: string): Partial<Transaction>[] {
     }
 
     if (matches.length >= 5) {
-      const id = matches[0];
-      const date = matches[1];
-      const type = matches[2].toLowerCase() === 'income' ? 'income' : 'expense';
-      const category_name = matches[3];
-      const amount = parseInt(matches[4], 10) || 0;
-      const description = matches[5] || '';
+      // Handle either 6-col legacy format or 10-col v2 format
+      let id = matches[0];
+      let date = matches[1];
+      let time = '';
+      let type: 'income' | 'expense' = 'expense';
+      let category_name = '';
+      let amount = 0;
+      let merchant = '';
+      let source = 'manual';
+      let payment_method = 'cash';
+      let description = '';
+
+      if (matches.length >= 10) {
+        // v2 format: ID, Date, Time, Type, Category, Amount, Merchant, Source, PaymentMethod, Description
+        time = matches[2];
+        type = matches[3].toLowerCase() === 'income' ? 'income' : 'expense';
+        category_name = matches[4];
+        amount = parseInt(matches[5], 10) || 0;
+        merchant = matches[6];
+        source = matches[7] || 'manual';
+        payment_method = matches[8] || 'cash';
+        description = matches[9] || '';
+      } else {
+        // legacy format: ID, Date, Type, Category, Amount, Description
+        type = matches[2].toLowerCase() === 'income' ? 'income' : 'expense';
+        category_name = matches[3];
+        amount = parseInt(matches[4], 10) || 0;
+        description = matches[5] || '';
+      }
 
       if (amount > 0 && date) {
         results.push({
           id: id || `csv-${Date.now()}-${i}`,
           date,
+          time,
           type,
           category_name,
           category_id: type === 'income' ? 'cat-inc-5' : 'cat-exp-8',
           amount,
+          merchant,
+          source: source as any,
+          payment_method: payment_method as any,
           description,
         });
       }
@@ -127,15 +168,29 @@ export function validateBackupJSON(parsed: any): BackupData {
       )
     : [];
 
+  const recurring_transactions = Array.isArray(parsed.data.recurring_transactions)
+    ? parsed.data.recurring_transactions.filter(
+        (r: any) =>
+          r &&
+          typeof r.id === 'string' &&
+          typeof r.title === 'string' &&
+          typeof r.amount === 'number' &&
+          r.amount > 0
+      )
+    : [];
+
   return {
-    version: parsed.version || '1.0.0',
+    version: parsed.version || '2.0.0',
     exported_at: parsed.exported_at || new Date().toISOString(),
     data: {
       transactions,
       budgets,
       savings_goals,
       savings_contributions,
+      recurring_transactions,
       categories: parsed.data.categories || [],
+      captured_notifications: parsed.data.captured_notifications || [],
+      settings: parsed.data.settings || [],
     },
   };
 }
