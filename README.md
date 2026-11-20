@@ -58,6 +58,18 @@ Engineered in accordance with the **Apple Design Craft Guidelines** harmonized w
 
 ---
 
+## 📚 Documentation
+
+Detailed architectural, privacy, feature, and installation guides are available in the [`docs/`](docs/) directory:
+
+- 🏛️ **[Architecture Documentation](docs/ARCHITECTURE.md):** Modular design, SQLite schema, Kotlin notification listener service, and design system tokens.
+- 🔒 **[Privacy & Security Guide](docs/PRIVACY.md):** Verifiable 100% offline architecture, local cryptographic deduplication, and zero-telemetry policy.
+- ✨ **[Feature Reference Guide](docs/FEATURES.md):** Deep-dive into Safe to Spend, Smart Budget, Savings Planner 2.0, Calendar, and Smart Capture parsers.
+- 📲 **[Installation & Troubleshooting](docs/INSTALLATION.md):** Sideloading instructions, Notification Access activation, and OEM battery optimization guides (MIUI, OneUI, ColorOS, Funtouch).
+- 📋 **[Changelog](CHANGELOG.md):** Chronological history of all version updates and changes.
+
+---
+
 ## 📱 Supported Android Versions
 
 - **Minimum SDK:** Android 7.0 (Nougat, API level 24)
