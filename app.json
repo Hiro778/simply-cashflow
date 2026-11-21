@@ -2,7 +2,7 @@
   "expo": {
     "name": "Simply Cashflow",
     "slug": "simply-cashflow",
-    "version": "2.0.0",
+    "version": "2.0.1",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "scheme": "simplycashflow",
@@ -17,8 +17,8 @@
       "bundleIdentifier": "com.hiro778.simplycashflow"
     },
     "android": {
-      "package": "com.hiro778.simplycashflow",
-      "versionCode": 2,
+      "package": "com.hiro778.simplycashflow.standalone",
+      "versionCode": 20101,
       "adaptiveIcon": {
         "foregroundImage": "./assets/android-icon-foreground.png",
         "backgroundColor": "#080D0B"

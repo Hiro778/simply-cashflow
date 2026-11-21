@@ -1,6 +1,6 @@
 {
   "name": "simply-cashflow",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "description": "Financial OS — Offline-first personal cashflow and savings manager for Android",
   "main": "expo-router/entry",
   "scripts": {

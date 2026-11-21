@@ -51,6 +51,7 @@ export function formatReadableMonth(monthStr: string): string {
 }
 
 export function getDaysRemaining(targetDateStr: string): number {
+  if (!targetDateStr || typeof targetDateStr !== 'string') return 0;
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 

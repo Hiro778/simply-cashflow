@@ -65,13 +65,13 @@ export async function getCategoryExpenseBreakdown(month: string): Promise<Catego
     color: string;
     icon: string;
   }>(
-    `SELECT t.category_id, t.category_name, SUM(t.amount) as total,
+    `SELECT t.category_id, COALESCE(c.name, t.category_name, 'Lainnya') as category_name, SUM(t.amount) as total,
             COALESCE(c.color, '#39D98A') as color,
             COALESCE(c.icon, 'Folder') as icon
      FROM transactions t
      LEFT JOIN categories c ON t.category_id = c.id
      WHERE t.type = 'expense' AND t.date LIKE ?
-     GROUP BY t.category_id, t.category_name
+     GROUP BY t.category_id, category_name
      ORDER BY total DESC;`,
     [`${month}%`]
   );

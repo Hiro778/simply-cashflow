@@ -110,4 +110,60 @@ describe('Database Schema & Repository Logic', () => {
     expect(metrics.percentage).toBe(50);
     expect(metrics.remainingAmount).toBe(10000000);
   });
+
+  test('Database initialization and migration safety', async () => {
+    const { getDatabase } = require('../database/db');
+    // Concurrent calls should resolve the same instance without race conditions
+    const [db1, db2] = await Promise.all([getDatabase(), getDatabase()]);
+    expect(db1).toBeDefined();
+    expect(db2).toBeDefined();
+    expect(db1).toBe(db2);
+  });
+
+  test('Migration handles missing columns without failing when upgrading from v1', async () => {
+    const { initDatabase } = require('../database/db');
+    const mockDb = {
+      execAsync: jest.fn().mockResolvedValue(undefined),
+      runAsync: jest.fn().mockResolvedValue({ changes: 1 }),
+      getFirstAsync: jest.fn().mockImplementation(async (query: string) => {
+        if (query.includes('sqlite_master')) {
+          return { name: 'transactions' };
+        }
+        if (query.includes('COUNT(*)')) {
+          return { count: 13 };
+        }
+        return null;
+      }),
+      getAllAsync: jest.fn().mockImplementation(async (query: string) => {
+        if (query.includes('table_info(transactions)')) {
+          // Simulate V1 schema: missing time, merchant, source, payment_method, reference_id
+          return [
+            { name: 'id' },
+            { name: 'amount' },
+            { name: 'type' },
+            { name: 'category_id' },
+            { name: 'category_name' },
+            { name: 'description' },
+            { name: 'date' },
+            { name: 'created_at' },
+            { name: 'updated_at' },
+          ];
+        }
+        return [];
+      }),
+    };
+
+    await expect(initDatabase(mockDb as any)).resolves.not.toThrow();
+
+    // Verify all missing v2 columns were added via ALTER TABLE
+    const alterCalls = mockDb.execAsync.mock.calls
+      .map((call: any[]) => call[0])
+      .filter((sql: string) => typeof sql === 'string' && sql.startsWith('ALTER TABLE'));
+
+    expect(alterCalls.some((sql: string) => sql.includes('ADD COLUMN time'))).toBe(true);
+    expect(alterCalls.some((sql: string) => sql.includes('ADD COLUMN merchant'))).toBe(true);
+    expect(alterCalls.some((sql: string) => sql.includes('ADD COLUMN source'))).toBe(true);
+    expect(alterCalls.some((sql: string) => sql.includes('ADD COLUMN payment_method'))).toBe(true);
+    expect(alterCalls.some((sql: string) => sql.includes('ADD COLUMN reference_id'))).toBe(true);
+  });
 });

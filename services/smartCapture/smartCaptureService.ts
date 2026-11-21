@@ -71,30 +71,38 @@ export class SmartCaptureBridgeService {
   ): () => void {
     if (!this.isAvailable()) return () => {};
 
-    if (!this.emitter) {
-      this.emitter = new NativeEventEmitter(SmartCaptureModule);
-    }
-
-    if (this.subscription) {
-      this.subscription.remove();
-    }
-
-    this.subscription = this.emitter.addListener(
-      'onSmartCaptureNotification',
-      async (raw: any) => {
-        try {
-          const res = await processNotification(raw);
-          onCapture(res);
-        } catch (err) {
-          console.warn('SmartCapture live event error:', err);
-        }
+    try {
+      if (!this.emitter) {
+        this.emitter = new NativeEventEmitter(SmartCaptureModule);
       }
-    );
 
-    return () => {
       if (this.subscription) {
         this.subscription.remove();
-        this.subscription = null;
+      }
+
+      this.subscription = this.emitter.addListener(
+        'onSmartCaptureNotification',
+        async (raw: any) => {
+          try {
+            const res = await processNotification(raw);
+            onCapture(res);
+          } catch (err) {
+            console.warn('SmartCapture live event error:', err);
+          }
+        }
+      );
+    } catch (emitterErr) {
+      console.warn('SmartCapture EventEmitter init failed:', emitterErr);
+    }
+
+    return () => {
+      try {
+        if (this.subscription) {
+          this.subscription.remove();
+          this.subscription = null;
+        }
+      } catch (e) {
+        console.warn('SmartCapture cleanup listener failed:', e);
       }
     };
   }
