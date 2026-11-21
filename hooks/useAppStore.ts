@@ -59,6 +59,7 @@ import { getDatabase } from '../database/db';
 interface AppState {
   isInitialized: boolean;
   isLoading: boolean;
+  initError: string | null;
   currentMonth: string;
   allTransactions: Transaction[];
   monthTransactions: Transaction[];
@@ -120,6 +121,7 @@ const defaultSafeToSpend: SafeToSpendResult = {
 export const useAppStore = create<AppState>((set, get) => ({
   isInitialized: false,
   isLoading: true,
+  initError: null,
   currentMonth: getCurrentMonthString(),
   allTransactions: [],
   monthTransactions: [],
@@ -137,7 +139,7 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   initialize: async () => {
     try {
-      set({ isLoading: true });
+      set({ isLoading: true, initError: null });
       await getDatabase(); // triggers table creation & category seeding & v2 migrations
 
       const month = get().currentMonth;
@@ -155,6 +157,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       set({
         isInitialized: true,
         isLoading: false,
+        initError: null,
         categories,
         allTransactions: allTx,
         monthTransactions: monthTx,
@@ -179,9 +182,12 @@ export const useAppStore = create<AppState>((set, get) => ({
       SmartCaptureBridgeService.startLiveListener(() => {
         get().refresh();
       });
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to initialize app state:', error);
-      set({ isLoading: false });
+      set({
+        isLoading: false,
+        initError: error?.message || 'Gagal menginisialisasi basis data',
+      });
     }
   },
 
